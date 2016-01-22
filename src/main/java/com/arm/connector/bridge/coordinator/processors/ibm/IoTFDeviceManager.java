@@ -119,7 +119,7 @@ public class IoTFDeviceManager extends BaseClass {
     
     // update the IoTF MQTT Hostname bindings to use
     public String updateHostnameBinding(String def) {
-        return this.m_iotf_rest_hostname;
+        return this.preferences().valueOf("iotf_rest_hostname_template",this.m_suffix).replace("__ORG_ID__",this.m_iotf_org_id + ".messaging");
     }
     
     // update the IoTF MQTT Hostname bindings to use
