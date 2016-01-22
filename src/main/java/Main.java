@@ -1,4 +1,3 @@
-
 import com.arm.connector.bridge.servlet.Manager;
 import com.arm.connector.bridge.core.ErrorLogger;
 import com.arm.connector.bridge.preferences.PreferenceManager;
