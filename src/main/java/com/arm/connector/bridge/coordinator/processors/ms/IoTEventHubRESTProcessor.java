@@ -45,6 +45,9 @@ public class IoTEventHubRESTProcessor extends Processor implements PeerInterface
         this.m_mds_domain = manager.getDomain();
         this.m_mds_processor = manager.mds_rest_processor();         // mDC REST processor
         this.m_suffix = suffix;
+        
+        // IoTF Processor Announce
+        this.errorLogger().info("IoTEventHub Processor ENABLED.");
     }
     
     // process a received new registration
