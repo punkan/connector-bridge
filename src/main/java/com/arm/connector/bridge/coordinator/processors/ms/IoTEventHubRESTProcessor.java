@@ -10,10 +10,8 @@ import com.arm.connector.bridge.coordinator.Orchestrator;
 import com.arm.connector.bridge.coordinator.processors.core.Processor;
 import com.arm.connector.bridge.coordinator.processors.interfaces.MDSInterface;
 import com.arm.connector.bridge.coordinator.processors.interfaces.PeerInterface;
-import com.arm.connector.bridge.core.Utils;
 import com.arm.connector.bridge.transport.HttpTransport;
 import java.util.Map;
-import javax.servlet.http.HttpServletRequest;
 
 /**
  * Microsoft IoTEventHub peer processor
@@ -53,24 +51,28 @@ public class IoTEventHubRESTProcessor extends Processor implements PeerInterface
     @Override
     public void processNewRegistration(Map message) {
         // XXX to do
+        this.errorLogger().info("processNewRegistration(IoTEventHub): message: " + message);
     }
     
     // process a received new registration
     @Override
     public void processReRegistration(Map message) {
         // XXX to do
+        this.errorLogger().info("processReRegistration(IoTEventHub): message: " + message);
     }
     
     // process a received new registration
     @Override
     public String[] processDeregistrations(Map message) {
         // XXX to do
+        this.errorLogger().info("processDeregistrations(IoTEventHub): message: " + message);
         return null;
     }
     
     // process mds registrations-expired messages 
     @Override
     public void processRegistrationsExpired(Map message) {
+        this.errorLogger().info("processRegistrationsExpired(IoTEventHub): message: " + message);
         this.processDeregistrations(message);
     }
     
@@ -78,23 +80,27 @@ public class IoTEventHubRESTProcessor extends Processor implements PeerInterface
     @Override
     public void processAsyncResponses(Map data) {
         // XXX to do
+        this.errorLogger().info("processAsyncResponses(IoTEventHub): data: " + data);
     }
     
     // process a received new registration/registration update/deregistration, 
     protected void processRegistration(Map data,String key) {
         // XXXX TO DO 
+        this.errorLogger().info("processRegistration(IoTEventHub): key: " + key + " data: " + data);
     }
     
     // process an observation
     @Override
     public void processNotification(Map data) {
         // XXXX TO DO
+        this.errorLogger().info("processNotification(IoTEventHub): data: " + data);
     }
     
     // Create the authentication hash
     @Override
     public String createAuthenticationHash() {
         // XXX TO DO
+        this.errorLogger().info("createAuthenticationHash(IoTEventHub)");
         return "";
     }
   
@@ -102,11 +108,13 @@ public class IoTEventHubRESTProcessor extends Processor implements PeerInterface
     @Override
     public void initListener() {
         // XXX to do
+        this.errorLogger().info("initListener(IoTEventHub)");
     }
 
     // stop our IoTEventHub listeners
     @Override
     public void stopListener() {
         // XXX to do
+        this.errorLogger().info("stopListener(IoTEventHub)");
     }
 }
