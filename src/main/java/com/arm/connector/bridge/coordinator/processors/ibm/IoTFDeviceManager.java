@@ -26,6 +26,7 @@ import com.arm.connector.bridge.core.ErrorLogger;
 import com.arm.connector.bridge.core.Utils;
 import com.arm.connector.bridge.preferences.PreferenceManager;
 import com.arm.connector.bridge.transport.HttpTransport;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -342,6 +343,24 @@ public class IoTFDeviceManager extends BaseClass {
         return json;
     }
     
+    // build out the gateway metadata JSON
+    private String createGatewayDeviceInfoJSON() {
+        HashMap<String,String> bridge = new HashMap<>();
+        
+        // pull from the configuration file for now... default to "unknown" if missing from the config file
+        bridge.put("meta_serial",this.prefValue("mds_bridge_serial_number","unknown"));
+        bridge.put("meta_mfg", this.prefValue("mds_bridge_manufacturer","unknown"));
+        bridge.put("meta_model", this.prefValue("mds_bridge_model","unknown"));
+        bridge.put("meta_class", this.prefValue("mds_bridge_class","unknown"));
+        bridge.put("meta_description", this.prefValue("mds_bridge_description","unknown"));
+        bridge.put("meta_firmware", this.prefValue("mds_bridge_firmware_info","unknown"));
+        bridge.put("meta_hardware", this.prefValue("mds_bridge_hardware_info","unknown"));
+        bridge.put("meta_location", this.prefValue("mds_bridge_descriptive_location","Bluemix Container Environment"));
+        
+        // return the deviceInfo JSON
+        return this.createMetadataDeviceInfoJSON(bridge);
+    }
+    
     // build out the metadata JSON
     private String createMetadataDeviceInfoJSON(Map metadata) {
         // deviceInfo JSON construction
@@ -391,7 +410,8 @@ public class IoTFDeviceManager extends BaseClass {
     // build out the ADD Gateway Device JSON
     private String createAddGatewayJSON() {
         return this.m_iotf_add_gw_template.replace("__GW_ID__", this.m_iotf_gw_id)
-                                          .replace("__AUTH__",this.m_iotf_gw_auth_token);
+                                          .replace("__AUTH__",this.m_iotf_gw_auth_token)
+                                          .replace("__DEVICE_INFO__",this.createGatewayDeviceInfoJSON());
     }
     
     // build out the ADD device json
