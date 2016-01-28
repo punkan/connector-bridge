@@ -300,6 +300,11 @@ public class Orchestrator implements MDSInterface, PeerInterface {
     public void resetNotificationCallbackURL() {
         this.mds_rest_processor().resetNotificationCallbackURL();
     }
+    
+    @Override
+    public void pullDeviceMetadata(Map endpoint) {
+        this.mds_rest_processor().pullDeviceMetadata(endpoint);
+    }
 
     // PeerInterface Orchestration
     @Override

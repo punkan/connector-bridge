@@ -59,6 +59,16 @@ public class MDSProcessor extends Processor implements MDSInterface {
     private boolean                    m_using_callback_webhooks = false;
     private boolean                    m_disable_sync = false;
     private boolean                    m_skip_validation = false;
+  
+    // device metadata resource URI from configuration
+    private String                     m_device_manufacturer_res = null;
+    private String                     m_device_serial_number_res = null;
+    private String                     m_device_model_res = null;
+    private String                     m_device_class_res = null;
+    private String                     m_device_description_res = null;
+    private String                     m_device_firmware_info_res = null;
+    private String                     m_device_hardware_info_res = null;
+    private String                     m_device_descriptive_location_res = null;
     
     // constructor
     public MDSProcessor(Orchestrator orchestrator,HttpTransport http) {
@@ -100,6 +110,21 @@ public class MDSProcessor extends Processor implements MDSInterface {
             this.errorLogger().info("Using mbed Device Connector. Sync=true DISABLED");
             this.m_disable_sync = true;
         }
+        
+        // init the device metadata resource URI's
+        this.initDeviceMetadataResourceURIs();
+    }
+    
+    // initialize the device metadata resource URIs
+    private void initDeviceMetadataResourceURIs() {
+        this.m_device_manufacturer_res = this.prefValue("mds_device_manufacturer_res");
+        this.m_device_serial_number_res = this.prefValue("mds_device_serial_number_res");
+        this.m_device_model_res = this.prefValue("mds_device_model_res");
+        this.m_device_class_res = this.prefValue("mds_device_class_res");
+        this.m_device_description_res = this.prefValue("mds_device_description_res");
+        this.m_device_firmware_info_res = this.prefValue("mds_device_firmware_info_res");
+        this.m_device_hardware_info_res = this.prefValue("mds_device_hardware_info_res");
+        this.m_device_descriptive_location_res = this.prefValue("mds_device_descriptive_location_res");
     }
     
     // mDS requires use of SSL (mDC)
@@ -919,6 +944,24 @@ public class MDSProcessor extends Processor implements MDSInterface {
         return json;
     }
     
+    // pull the initial device metadata from mDS.. add it to the device endpoint map
+    @Override
+    public void pullDeviceMetadata(Map endpoint) {
+        this.pullDeviceManufacturer(endpoint);
+        this.pullDeviceSerialNumber(endpoint);
+        this.pullDeviceModel(endpoint);
+        this.pullDeviceClass(endpoint);
+        this.pullDeviceDescription(endpoint);
+        this.pullDeviceFirmwareInfo(endpoint);
+        this.pullDeviceHardwareInfo(endpoint);
+        this.pullDeviceDescriptiveLocation(endpoint);
+    }
+    
+    // pull the device descriptive location information
+    private void pullDeviceDescriptiveLocation(Map endpoint) {
+        
+    }
+    
     // read the request data
     @SuppressWarnings("empty-statement")
     private String read(HttpServletRequest request) {
@@ -993,5 +1036,58 @@ public class MDSProcessor extends Processor implements MDSInterface {
         }
         
         return updated_qs;
+    }
+    
+    //
+    // The following methods are stubbed out for now - they provide defaulted device metadata info.
+    // The actual CoAP Resource URI's are specified in the bridge configuration file and must be the same for all devices.
+    // 
+    
+    // pull the device manufacturer information
+    private void pullDeviceManufacturer(Map endpoint) {
+        //this.m_device_manufacturer_res
+        endpoint.put("meta_mfg", "ARM");
+    }
+    
+    // pull the device Serial Number information
+    private void pullDeviceSerialNumber(Map endpoint) {
+        //this.m_device_serial_number_res
+        endpoint.put("meta_serial", "0123456789");
+    }
+    
+    // pull the device model information
+    private void pullDeviceModel(Map endpoint) {
+        //this.m_device_model_res
+        endpoint.put("meta_model", "mbed");
+    }
+    
+    // pull the device manufacturer information
+    private void pullDeviceClass(Map endpoint) {
+        //this.m_device_class_res
+        endpoint.put("meta_class", "cortex-m");
+    }
+    
+    // pull the device manufacturer information
+    private void pullDeviceDescription(Map endpoint) {
+        //this.m_device_description_res
+        endpoint.put("meta_description", "mbed device");
+    }
+    
+    // pull the device firmware information
+    private void pullDeviceFirmwareInfo(Map endpoint) {
+        //this.m_device_firmware_info_res
+        endpoint.put("meta_firmware", "1.0");
+    }
+    
+    // pull the device hardware information
+    private void pullDeviceHardwareInfo(Map endpoint) {
+        //this.m_device_hardware_info_res
+        endpoint.put("meta_hardware", "1.0");
+    }
+    
+    // pull the description location information for the device
+    private void pullDeviceLocationDescriptionInfo(Map endpoint) {
+        //this.m_device_descriptive_location_res
+        endpoint.put("meta_location", "not specified");
     }
 }

@@ -344,10 +344,37 @@ public class IoTFDeviceManager extends BaseClass {
     
     // build out the metadata JSON
     private String createMetadataDeviceInfoJSON(Map metadata) {
-        String json = "";
+        // deviceInfo JSON construction
+        String json = ",\"deviceInfo\": {";
         
-        // stubbed out for now
+        // SerialNumber
+        json += "\"serialNumber\":\"" + (String)metadata.get("meta_serial") + "\",";
         
+        // Manufacturer
+        json += "\"manufacturer\":\"" + (String)metadata.get("meta_mfg") + "\",";
+        
+        // Model
+        json += "\"model\":\"" + (String)metadata.get("meta_model") + "\",";
+        
+        // Device Class
+        json += "\"deviceClass\":\"" + (String)metadata.get("meta_class") + "\",";
+        
+        // Description
+        json += "\"description\":\"" + (String)metadata.get("meta_description") + "\",";
+        
+        // Firmware
+        json += "\"fwVersion\":\"" + (String)metadata.get("meta_firmware") + "\",";
+        
+        // Hardware
+        json += "\"hwVersion\":\"" + (String)metadata.get("meta_hardware") + "\",";
+        
+        // Location description
+        json += "\"descriptiveLocation\":\"" + (String)metadata.get("meta_location") + "\"";
+        
+        // finish
+        json += "}";
+        
+        // return the device info
         return json;
     }
     

@@ -321,6 +321,9 @@ public class IoTFMQTTProcessor extends GenericMQTTProcessor implements Transport
                 }
             }    
             
+            // pre-populate the new endpoint with initial values for registration
+            this.orchestrator().pullDeviceMetadata(endpoint);
+            
             // create the device in IoTF
             this.registerNewDevice(endpoint);
             

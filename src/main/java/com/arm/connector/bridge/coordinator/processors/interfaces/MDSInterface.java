@@ -58,4 +58,7 @@ public interface MDSInterface {
     // Webhook management
     public void setNotificationCallbackURL();
     public void resetNotificationCallbackURL();
+    
+    // Device Metadata extraction
+    public void pullDeviceMetadata(Map endpoint);
 }
