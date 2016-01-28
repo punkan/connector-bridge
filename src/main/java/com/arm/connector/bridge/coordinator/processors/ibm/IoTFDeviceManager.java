@@ -348,14 +348,14 @@ public class IoTFDeviceManager extends BaseClass {
         HashMap<String,String> bridge = new HashMap<>();
         
         // pull from the configuration file for now... default to "unknown" if missing from the config file
-        bridge.put("meta_serial",this.prefValue("mds_bridge_serial_number","unknown"));
-        bridge.put("meta_mfg", this.prefValue("mds_bridge_manufacturer","unknown"));
-        bridge.put("meta_model", this.prefValue("mds_bridge_model","unknown"));
-        bridge.put("meta_class", this.prefValue("mds_bridge_class","unknown"));
-        bridge.put("meta_description", this.prefValue("mds_bridge_description","unknown"));
-        bridge.put("meta_firmware", this.prefValue("mds_bridge_firmware_info","unknown"));
-        bridge.put("meta_hardware", this.prefValue("mds_bridge_hardware_info","unknown"));
-        bridge.put("meta_location", this.prefValue("mds_bridge_descriptive_location","Bluemix Container Environment"));
+        bridge.put("meta_serial",this.prefValueWithDefault("mds_bridge_serial_number","unknown"));
+        bridge.put("meta_mfg", this.prefValueWithDefault("mds_bridge_manufacturer","unknown"));
+        bridge.put("meta_model", this.prefValueWithDefault("mds_bridge_model","unknown"));
+        bridge.put("meta_class", this.prefValueWithDefault("mds_bridge_class","unknown"));
+        bridge.put("meta_description", this.prefValueWithDefault("mds_bridge_description","unknown"));
+        bridge.put("meta_firmware", this.prefValueWithDefault("mds_bridge_firmware_info","unknown"));
+        bridge.put("meta_hardware", this.prefValueWithDefault("mds_bridge_hardware_info","unknown"));
+        bridge.put("meta_location", this.prefValueWithDefault("mds_bridge_descriptive_location","Bluemix Container Environment"));
         
         // return the deviceInfo JSON
         return this.createMetadataDeviceInfoJSON(bridge);

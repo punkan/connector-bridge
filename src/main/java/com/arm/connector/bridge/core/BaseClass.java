@@ -88,6 +88,31 @@ public class BaseClass {
     /**
      *
      * @param key
+     * @param def_value
+     * @return
+     */
+    protected String prefValueWithDefault(String key,String def_value) {
+        return this.prefValueWithDefault(key, null, def_value);
+    }
+    
+    /**
+     *
+     * @param key
+     * @param suffix
+     * @param def_value
+     * @return
+     */
+    protected String prefValueWithDefault(String key,String suffix,String def_value) {
+        String value = this.prefValue(key,suffix);
+        if (value != null && value.length() > 0) {
+            return value;
+        }
+        return def_value;
+    }
+    
+    /**
+     *
+     * @param key
      * @return
      */
     protected int prefIntValue(String key) {
