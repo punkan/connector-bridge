@@ -954,12 +954,7 @@ public class MDSProcessor extends Processor implements MDSInterface {
         this.pullDeviceDescription(endpoint);
         this.pullDeviceFirmwareInfo(endpoint);
         this.pullDeviceHardwareInfo(endpoint);
-        this.pullDeviceDescriptiveLocation(endpoint);
-    }
-    
-    // pull the device descriptive location information
-    private void pullDeviceDescriptiveLocation(Map endpoint) {
-        
+        this.pullDeviceLocationDescriptionInfo(endpoint);
     }
     
     // read the request data
@@ -1088,6 +1083,6 @@ public class MDSProcessor extends Processor implements MDSInterface {
     // pull the description location information for the device
     private void pullDeviceLocationDescriptionInfo(Map endpoint) {
         //this.m_device_descriptive_location_res
-        endpoint.put("meta_location", "not specified");
+        endpoint.put("meta_location", "n/a");
     }
 }
