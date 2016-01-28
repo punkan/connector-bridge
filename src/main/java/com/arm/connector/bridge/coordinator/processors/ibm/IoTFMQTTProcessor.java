@@ -1,7 +1,23 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
+/**
+ * @file    IoTFMQTTProcessor.java
+ * @brief   IBM IoTF MQTT Peer Processor
+ * @author  Doug Anson
+ * @version 1.0
+ * @see
+ *
+ * Copyright (c) 2016 ARM
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package com.arm.connector.bridge.coordinator.processors.ibm;
@@ -11,7 +27,7 @@ import com.arm.connector.bridge.coordinator.processors.interfaces.PeerInterface;
 import com.arm.connector.bridge.core.Utils;
 import com.arm.connector.bridge.transport.HttpTransport;
 import com.arm.connector.bridge.transport.MQTTTransport;
-import com.arm.connector.bridge.transport.Transport;
+import com.arm.connector.bridge.core.Transport;
 import com.codesnippets4all.json.parsers.JSONParser;
 import java.util.HashMap;
 import java.util.List;
@@ -66,47 +82,47 @@ public class IoTFMQTTProcessor extends GenericMQTTProcessor implements Transport
         this.m_iotf_endpoints = new HashMap<>();
                         
         // get our defaults
-        this.m_iotf_org_id = this.manager().preferences().valueOf("iotf_org_id",this.m_suffix);
-        this.m_iotf_api_key = this.manager().preferences().valueOf("iotf_api_key",this.m_suffix);
-        this.m_iotf_device_type = this.manager().preferences().valueOf("iotf_device_type",this.m_suffix);
-        this.m_mqtt_ip_address = this.manager().preferences().valueOf("iotf_mqtt_ip_address",this.m_suffix);
-        this.m_mqtt_port = this.manager().preferences().intValueOf("iotf_mqtt_port",this.m_suffix);
+        this.m_iotf_org_id = this.orchestrator().preferences().valueOf("iotf_org_id",this.m_suffix);
+        this.m_iotf_api_key = this.orchestrator().preferences().valueOf("iotf_api_key",this.m_suffix);
+        this.m_iotf_device_type = this.orchestrator().preferences().valueOf("iotf_device_type",this.m_suffix);
+        this.m_mqtt_ip_address = this.orchestrator().preferences().valueOf("iotf_mqtt_ip_address",this.m_suffix);
+        this.m_mqtt_port = this.orchestrator().preferences().intValueOf("iotf_mqtt_port",this.m_suffix);
         
         // get our configured device data key 
-        this.m_iotf_device_data_key = this.manager().preferences().valueOf("iotf_device_data_key",this.m_suffix);
+        this.m_iotf_device_data_key = this.orchestrator().preferences().valueOf("iotf_device_data_key",this.m_suffix);
         if (this.m_iotf_device_data_key == null || this.m_iotf_device_data_key.length() <= 0) {
             // default
             this.m_iotf_device_data_key = "coap";
         }
         
         // RTI
-        this.m_rti_format_enable = this.manager().preferences().booleanValueOf("iotf_use_rti_format",this.m_suffix);
+        this.m_rti_format_enable = this.orchestrator().preferences().booleanValueOf("iotf_use_rti_format",this.m_suffix);
         if (this.m_rti_format_enable) {
             this.errorLogger().info("RTI Formatting ENABLED.");
         }
         
         // starter kit supports observation notifications
-        this.m_iotf_observe_notification_topic = this.manager().preferences().valueOf("iotf_observe_notification_topic",this.m_suffix).replace("__EVENT_TYPE__","observation"); 
+        this.m_iotf_observe_notification_topic = this.orchestrator().preferences().valueOf("iotf_observe_notification_topic",this.m_suffix).replace("__EVENT_TYPE__","observation"); 
         
         // starter kit can send CoAP commands back through mDS into the endpoint via these Topics... 
-        this.m_iotf_coap_cmd_topic_get = this.manager().preferences().valueOf("iotf_coap_cmd_topic",this.m_suffix).replace("__COMMAND_TYPE__","get");
-        this.m_iotf_coap_cmd_topic_put = this.manager().preferences().valueOf("iotf_coap_cmd_topic",this.m_suffix).replace("__COMMAND_TYPE__","put");
-        this.m_iotf_coap_cmd_topic_post = this.manager().preferences().valueOf("iotf_coap_cmd_topic",this.m_suffix).replace("__COMMAND_TYPE__","post");
-        this.m_iotf_coap_cmd_topic_delete = this.manager().preferences().valueOf("iotf_coap_cmd_topic",this.m_suffix).replace("__COMMAND_TYPE__","delete");
+        this.m_iotf_coap_cmd_topic_get = this.orchestrator().preferences().valueOf("iotf_coap_cmd_topic",this.m_suffix).replace("__COMMAND_TYPE__","get");
+        this.m_iotf_coap_cmd_topic_put = this.orchestrator().preferences().valueOf("iotf_coap_cmd_topic",this.m_suffix).replace("__COMMAND_TYPE__","put");
+        this.m_iotf_coap_cmd_topic_post = this.orchestrator().preferences().valueOf("iotf_coap_cmd_topic",this.m_suffix).replace("__COMMAND_TYPE__","post");
+        this.m_iotf_coap_cmd_topic_delete = this.orchestrator().preferences().valueOf("iotf_coap_cmd_topic",this.m_suffix).replace("__COMMAND_TYPE__","delete");
         
         // establish default bindings
-        this.m_iotf_username = this.manager().preferences().valueOf("iotf_username",this.m_suffix).replace("__ORG_ID__",this.m_iotf_org_id).replace("__API_KEY__",this.m_iotf_api_key);
-        this.m_iotf_password = this.manager().preferences().valueOf("iotf_password",this.m_suffix);
+        this.m_iotf_username = this.orchestrator().preferences().valueOf("iotf_username",this.m_suffix).replace("__ORG_ID__",this.m_iotf_org_id).replace("__API_KEY__",this.m_iotf_api_key);
+        this.m_iotf_password = this.orchestrator().preferences().valueOf("iotf_password",this.m_suffix);
         
         // resync org_id and m_iotf_api_key
         this.parseIoTFUsername();
         
         // create the client ID
-        this.m_client_id_template = this.manager().preferences().valueOf("iotf_client_id_template",this.m_suffix).replace("__ORG_ID__",this.m_iotf_org_id);
+        this.m_client_id_template = this.orchestrator().preferences().valueOf("iotf_client_id_template",this.m_suffix).replace("__ORG_ID__",this.m_iotf_org_id);
         this.m_client_id = this.createIoTFClientID(this.m_mds_domain);
         
         // IoTF Device Manager - will initialize and update our IoTF bindings/metadata
-        this.m_iotf_device_manager = new IoTFDeviceManager(this.manager().errorLogger(),this.manager().preferences(),this.m_suffix,http);
+        this.m_iotf_device_manager = new IoTFDeviceManager(this.orchestrator().errorLogger(),this.orchestrator().preferences(),this.m_suffix,http);
         this.m_iotf_device_manager.updateIoTFBindings(this.m_iotf_org_id, this.m_iotf_api_key);
         this.m_iotf_username = this.m_iotf_device_manager.updateUsernameBinding(this.m_iotf_username);
         this.m_iotf_password = this.m_iotf_device_manager.updatePasswordBinding(this.m_iotf_password);
@@ -287,7 +303,7 @@ public class IoTFMQTTProcessor extends GenericMQTTProcessor implements Transport
                 // re-subscribe
                 if (this.m_subscriptions.containsSubscription(this.m_mds_domain,(String)endpoint.get("ep"),(String)resource.get("path"))) {
                     // re-subscribe to this resource
-                    this.mdsProcessor().subscribeToEndpointResource((String)endpoint.get("ep"),(String)resource.get("path"),false);
+                    this.orchestrator().subscribeToEndpointResource((String)endpoint.get("ep"),(String)resource.get("path"),false);
                     
                     // SYNC: here we dont have to worry about Sync options - we simply dispatch the subscription to mDS and setup for it...
                     this.m_subscriptions.removeSubscription(this.m_mds_domain,(String)endpoint.get("ep"),(String)resource.get("path"));
@@ -297,7 +313,7 @@ public class IoTFMQTTProcessor extends GenericMQTTProcessor implements Transport
                 // auto-subscribe
                 else if (this.isObservableResource(resource) && this.m_auto_subscribe_to_obs_resources == true) {
                     // auto-subscribe to observable resources... if enabled.
-                    this.mdsProcessor().subscribeToEndpointResource((String)endpoint.get("ep"),(String)resource.get("path"),false);
+                    this.orchestrator().subscribeToEndpointResource((String)endpoint.get("ep"),(String)resource.get("path"),false);
                     
                     // SYNC: here we dont have to worry about Sync options - we simply dispatch the subscription to mDS and setup for it...
                     this.m_subscriptions.removeSubscription(this.m_mds_domain,(String)endpoint.get("ep"),(String)resource.get("path"));
@@ -365,18 +381,18 @@ public class IoTFMQTTProcessor extends GenericMQTTProcessor implements Transport
         // if not connected attempt
         if (!this.isConnected()) {
             if (this.mqtt().connect(this.m_mqtt_ip_address, this.m_mqtt_port, this.m_client_id, true)) {
-                this.manager().errorLogger().info("IoTF: Setting CoAP command listener...");
+                this.orchestrator().errorLogger().info("IoTF: Setting CoAP command listener...");
                 this.mqtt().setOnReceiveListener(this);
-                this.manager().errorLogger().info("IoTF: connection completed successfully");
+                this.orchestrator().errorLogger().info("IoTF: connection completed successfully");
             }
         }
         else {
             // already connected
-            this.manager().errorLogger().info("IoTF: Already connected (OK)...");
+            this.orchestrator().errorLogger().info("IoTF: Already connected (OK)...");
         }
         
         // return our connection status
-        this.manager().errorLogger().info("IoTF: Connection status: " + this.isConnected());
+        this.orchestrator().errorLogger().info("IoTF: Connection status: " + this.isConnected());
         return this.isConnected();
     }
     
@@ -397,7 +413,7 @@ public class IoTFMQTTProcessor extends GenericMQTTProcessor implements Transport
     @SuppressWarnings("empty-statement")
     public void subscribe(String ep_name) {
         if (ep_name != null) {
-            //this.manager().errorLogger().info("IoTF: Subscribing to CoAP command topics for endpoint: " + ep_name);
+            //this.orchestrator().errorLogger().info("IoTF: Subscribing to CoAP command topics for endpoint: " + ep_name);
             try {
                 HashMap<String,Object> topic_data = this.createEndpointTopicData(ep_name);
                 if (topic_data != null) {
@@ -406,15 +422,15 @@ public class IoTFMQTTProcessor extends GenericMQTTProcessor implements Transport
                     this.mqtt().subscribe((Topic[])topic_data.get("topic_list"));
                 }
                 else {
-                    this.manager().errorLogger().warning("IoTF: GET/PUT/POST/DELETE topic data NULL. GET/PUT/POST/DELETE disabled");
+                    this.orchestrator().errorLogger().warning("IoTF: GET/PUT/POST/DELETE topic data NULL. GET/PUT/POST/DELETE disabled");
                 }
             }
             catch (Exception ex) {
-                this.manager().errorLogger().info("IoTF: Exception in subscribe for " + ep_name + " : " + ex.getMessage());
+                this.orchestrator().errorLogger().info("IoTF: Exception in subscribe for " + ep_name + " : " + ex.getMessage());
             }
         }
         else {
-            this.manager().errorLogger().info("IoTF: NULL Endpoint name in subscribe()... ignoring...");
+            this.orchestrator().errorLogger().info("IoTF: NULL Endpoint name in subscribe()... ignoring...");
         }
     }
     
@@ -422,7 +438,7 @@ public class IoTFMQTTProcessor extends GenericMQTTProcessor implements Transport
     public boolean unsubscribe(String ep_name) {
         boolean do_register = false;
         if (ep_name != null) {
-            //this.manager().errorLogger().info("IoTF: Un-Subscribing to CoAP command topics for endpoint: " + ep_name);
+            //this.orchestrator().errorLogger().info("IoTF: Un-Subscribing to CoAP command topics for endpoint: " + ep_name);
             try {
                 HashMap<String,Object> topic_data = (HashMap<String,Object>)this.m_iotf_endpoints.get(ep_name);
                 if (topic_data != null) {
@@ -431,16 +447,16 @@ public class IoTFMQTTProcessor extends GenericMQTTProcessor implements Transport
                 } 
                 else {
                     // not in subscription list (OK)
-                    this.manager().errorLogger().info("IoTF: Endpoint: " + ep_name + " not in subscription list (OK).");
+                    this.orchestrator().errorLogger().info("IoTF: Endpoint: " + ep_name + " not in subscription list (OK).");
                     do_register = true;
                 }
             }
             catch (Exception ex) {
-                this.manager().errorLogger().info("IoTF: Exception in unsubscribe for " + ep_name + " : " + ex.getMessage());
+                this.orchestrator().errorLogger().info("IoTF: Exception in unsubscribe for " + ep_name + " : " + ex.getMessage());
             }
         }
         else {
-            this.manager().errorLogger().info("IoTF: NULL Endpoint name in unsubscribe()... ignoring...");
+            this.orchestrator().errorLogger().info("IoTF: NULL Endpoint name in unsubscribe()... ignoring...");
         }
         return do_register;
     }
@@ -466,7 +482,7 @@ public class IoTFMQTTProcessor extends GenericMQTTProcessor implements Transport
     private String getCoAPURI(String message) {
         // expected format: { "path":"/303/0/5850", "new_value":"0", "ep":"mbed-eth-observe" }
         //this.errorLogger().info("getCoAPURI: payload: " + message);
-        JSONParser parser = this.manager().getJSONParser();
+        JSONParser parser = this.orchestrator().getJSONParser();
         Map parsed = parser.parseJson(message);
         return (String)parsed.get("path");
     }
@@ -474,7 +490,7 @@ public class IoTFMQTTProcessor extends GenericMQTTProcessor implements Transport
     private String getCoAPValue(String message) {
         // expected format: { "path":"/303/0/5850", "new_value":"0", "ep":"mbed-eth-observe" }
         //this.errorLogger().info("getCoAPValue: payload: " + message);
-        JSONParser parser = this.manager().getJSONParser();
+        JSONParser parser = this.orchestrator().getJSONParser();
         Map parsed = parser.parseJson(message);
         return (String)parsed.get("new_value");
     }
@@ -482,7 +498,7 @@ public class IoTFMQTTProcessor extends GenericMQTTProcessor implements Transport
     private String getCoAPEndpointName(String message) {
         // expected format: { "path":"/303/0/5850", "new_value":"0", "ep":"mbed-eth-observe" }
         //this.errorLogger().info("getCoAPValue: payload: " + message);
-        JSONParser parser = this.manager().getJSONParser();
+        JSONParser parser = this.orchestrator().getJSONParser();
         Map parsed = parser.parseJson(message);
         return (String)parsed.get("ep");
     }
@@ -509,7 +525,7 @@ public class IoTFMQTTProcessor extends GenericMQTTProcessor implements Transport
         }
         
         // dispatch the coap resource operation request
-        String response = this.m_mds_processor.processEndpointResourceOperation(coap_verb,ep_name,uri,value);
+        String response = this.orchestrator().processEndpointResourceOperation(coap_verb,ep_name,uri,value);
         
         // examine the response
         if (response != null && response.length() > 0) {
@@ -589,8 +605,8 @@ public class IoTFMQTTProcessor extends GenericMQTTProcessor implements Transport
                 Map response_map = (Map)async_response.get("response_map");
                 
                 // Convert back to String, then to List
-                String t = this.manager().getJSONGenerator().generateJson(response_map);
-                List async_responses = (List)this.manager().getJSONParser().parseJson(t);
+                String t = this.orchestrator().getJSONGenerator().generateJson(response_map);
+                List async_responses = (List)this.orchestrator().getJSONParser().parseJson(t);
                 for(int i=0;async_responses != null && i<async_responses.size();++i) {
                     // get the ith entry from the list
                     Map response = (Map)async_responses.get(i);

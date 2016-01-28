@@ -1,7 +1,23 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
+/**
+ * @file    StarterKitMQTTProcessor.java
+ * @brief   IBM StarterKit MQTT Peer Processor
+ * @author  Doug Anson
+ * @version 1.0
+ * @see
+ *
+ * Copyright (c) 2016 ARM
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package com.arm.connector.bridge.coordinator.processors.ibm;
@@ -16,7 +32,7 @@ import java.util.Map;
 import org.fusesource.mqtt.client.QoS;
 
 /**
- *
+ * IBM StarterKit MQTT Peer Processor
  * @author Doug Anson
  */
 public class StarterKitMQTTProcessor extends GenericMQTTProcessor implements PeerInterface {
@@ -43,17 +59,17 @@ public class StarterKitMQTTProcessor extends GenericMQTTProcessor implements Pee
         this.m_client_id = "error";
                                 
         // get our defaults
-        this.m_starterkit_device_type = this.manager().preferences().valueOf("starterkit_device_type",this.m_suffix);
-        this.m_mqtt_port = this.manager().preferences().intValueOf("starterkit_mqtt_port",this.m_suffix);
+        this.m_starterkit_device_type = this.orchestrator().preferences().valueOf("starterkit_device_type",this.m_suffix);
+        this.m_mqtt_port = this.orchestrator().preferences().intValueOf("starterkit_mqtt_port",this.m_suffix);
         
         // get our configured device data key 
         this.m_starterkit_device_data_key = "d";
                 
         // our MQTT IP Address is also different - quickstart.messaging.internetofthings.ibmcloud.com - 184.172.124.189
-        this.m_mqtt_ip_address = this.manager().preferences().valueOf("starterkit_mqtt_ip_address",this.m_suffix);
+        this.m_mqtt_ip_address = this.orchestrator().preferences().valueOf("starterkit_mqtt_ip_address",this.m_suffix);
 
         // we use a canned topic for notifications
-        this.m_starterkit_observe_notification_topic = this.manager().preferences().valueOf("starterkit_notification_topic",this.m_suffix);
+        this.m_starterkit_observe_notification_topic = this.orchestrator().preferences().valueOf("starterkit_notification_topic",this.m_suffix);
         
         // add the transport
         this.initMQTTTransportList();
@@ -294,7 +310,7 @@ public class StarterKitMQTTProcessor extends GenericMQTTProcessor implements Pee
                             this.errorLogger().info("processRegistration: re-establishing QuickStart connection... SUCCESS. Re-subscribing...");
                             
                             // re-subscribe to this resource
-                            this.mdsProcessor().subscribeToEndpointResource((String)endpoint.get("ep"),(String)resource.get("path"),false);
+                            this.orchestrator().subscribeToEndpointResource((String)endpoint.get("ep"),(String)resource.get("path"),false);
                     
                             // SYNC: here we dont have to worry about Sync options - we simply dispatch the subscription to mDS and setup for it...
                             this.m_subscriptions.removeSubscription(this.m_mds_domain,(String)endpoint.get("ep"),(String)resource.get("path"));
@@ -308,7 +324,7 @@ public class StarterKitMQTTProcessor extends GenericMQTTProcessor implements Pee
                     }
                     else {
                         // we do not need to re-create the starterkit connection... it already exists... so just handle the subscription check..
-                        this.mdsProcessor().subscribeToEndpointResource((String)endpoint.get("ep"),(String)resource.get("path"),false);
+                        this.orchestrator().subscribeToEndpointResource((String)endpoint.get("ep"),(String)resource.get("path"),false);
 
                         // SYNC: here we dont have to worry about Sync options - we simply dispatch the subscription to mDS and setup for it... 
                         this.m_subscriptions.removeSubscription(this.m_mds_domain,(String)endpoint.get("ep"),(String)resource.get("path"));
@@ -321,7 +337,7 @@ public class StarterKitMQTTProcessor extends GenericMQTTProcessor implements Pee
                     // create a specific StarterKit MQTT connection with a clientID having the endpoint name as its device_id
                     if (this.addNewMQTTConnection((String)endpoint.get("ep")) == true) {
                         // auto-subscribe to observable resources... if enabled.
-                        this.mdsProcessor().subscribeToEndpointResource((String)endpoint.get("ep"),(String)resource.get("path"),false);
+                        this.orchestrator().subscribeToEndpointResource((String)endpoint.get("ep"),(String)resource.get("path"),false);
                     
                         // SYNC: here we dont have to worry about Sync options - we simply dispatch the subscription to mDS and setup for it...
                         this.m_subscriptions.removeSubscription(this.m_mds_domain,(String)endpoint.get("ep"),(String)resource.get("path"));
@@ -350,16 +366,16 @@ public class StarterKitMQTTProcessor extends GenericMQTTProcessor implements Pee
         // if not connected attempt
         if (!this.isConnected(clientID)) {
             if (this.mqtt(clientID).connect(this.m_mqtt_ip_address, this.m_mqtt_port, clientID, true)) {
-                this.manager().errorLogger().info("StarterKit: connection (" + clientID + ") completed successfully");
+                this.orchestrator().errorLogger().info("StarterKit: connection (" + clientID + ") completed successfully");
             }
         }
         else {
             // already connected
-            this.manager().errorLogger().info("StarterKit: Already connected (OK)...");
+            this.orchestrator().errorLogger().info("StarterKit: Already connected (OK)...");
         }
         
         // return our connection status
-        this.manager().errorLogger().info("StarterKit: Connection status (" + clientID + "): " + this.isConnected(clientID));
+        this.orchestrator().errorLogger().info("StarterKit: Connection status (" + clientID + "): " + this.isConnected(clientID));
         return this.isConnected(clientID);
     }
     

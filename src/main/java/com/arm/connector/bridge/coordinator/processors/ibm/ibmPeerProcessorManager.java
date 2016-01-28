@@ -1,18 +1,33 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
+/**
+ * @file    ibmPeerProcessorManager.java
+ * @brief   IBM Peer Processor Manager
+ * @author  Doug Anson
+ * @version 1.0
+ * @see
+ *
+ * Copyright (c) 2016 ARM
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package com.arm.connector.bridge.coordinator.processors.ibm;
 
 import com.arm.connector.bridge.coordinator.Orchestrator;
 import com.arm.connector.bridge.coordinator.processors.core.Processor;
-import com.arm.connector.bridge.coordinator.processors.interfaces.MDSInterface;
 import com.arm.connector.bridge.coordinator.processors.interfaces.PeerInterface;
 import com.arm.connector.bridge.transport.HttpTransport;
 import com.arm.connector.bridge.transport.MQTTTransport;
-import com.arm.connector.bridge.transport.Transport;
+import com.arm.connector.bridge.core.Transport;
 import java.util.ArrayList;
 import java.util.Map;
 
@@ -25,8 +40,8 @@ public class ibmPeerProcessorManager extends Processor implements Transport.Rece
     private HttpTransport m_http = null;
     private int m_default_processor = 0;
     
-    // Factory method for initializing the IBM MQTT collection manager
-    public static ibmPeerProcessorManager createPeerProcessor(Orchestrator manager,MDSInterface mds_rest_processor,HttpTransport http) {
+    // Factory method for initializing the IBM MQTT collection orchestrator
+    public static ibmPeerProcessorManager createPeerProcessor(Orchestrator manager,HttpTransport http) {
         // create me
         ibmPeerProcessorManager me = new ibmPeerProcessorManager(manager,http);
         
@@ -41,37 +56,31 @@ public class ibmPeerProcessorManager extends Processor implements Transport.Rece
                 if (starterkit_enabled == true && config[i].equalsIgnoreCase("sk") == true) {
                     manager.errorLogger().info("Registering StarterKit MQTT processor...");
                     GenericMQTTProcessor p = new StarterKitMQTTProcessor(manager,""+i,http);
-                    p.setMDSProcessor(mds_rest_processor);
                     me.addProcessor(p);
                 }
                 if (starterkit_enabled == true && config[i].equalsIgnoreCase("sk-d") == true) {
                     manager.errorLogger().info("Registering StarterKit MQTT processor (default)...");
                     GenericMQTTProcessor p = new StarterKitMQTTProcessor(manager,""+i,http);
-                    p.setMDSProcessor(mds_rest_processor);
                     me.addProcessor(p,true);
                 }
                 if (iotf_enabled == true && config[i].equalsIgnoreCase("iotf") == true) {
                     manager.errorLogger().info("Registering IoTF MQTT processor...");
                     GenericMQTTProcessor p = new IoTFMQTTProcessor(manager,new MQTTTransport(manager.errorLogger(),manager.preferences()),""+i,http);
-                    p.setMDSProcessor(mds_rest_processor);
                     me.addProcessor(p);
                 }
                 if (iotf_enabled == true && config[i].equalsIgnoreCase("iotf-d") == true) {
                     manager.errorLogger().info("Registering IoTF MQTT processor (default)...");
                     GenericMQTTProcessor p = new IoTFMQTTProcessor(manager,new MQTTTransport(manager.errorLogger(),manager.preferences()),""+i,http);
-                    p.setMDSProcessor(mds_rest_processor);
                     me.addProcessor(p,true);
                 }
                 if (config[i].equalsIgnoreCase("std") == true) {
                     manager.errorLogger().info("Registering Standard MQTT processor...");
                     GenericMQTTProcessor p = new GenericMQTTProcessor(manager,new MQTTTransport(manager.errorLogger(),manager.preferences()),""+i,http);
-                    p.setMDSProcessor(mds_rest_processor);
                     me.addProcessor(p);
                 }
                 if (config[i].equalsIgnoreCase("std-d") == true) {
                     manager.errorLogger().info("Registering Standard MQTT processor (default)...");
                     GenericMQTTProcessor p = new GenericMQTTProcessor(manager,new MQTTTransport(manager.errorLogger(),manager.preferences()),""+i,http);
-                    p.setMDSProcessor(mds_rest_processor);
                     me.addProcessor(p,true);
                 }
             }
@@ -81,19 +90,16 @@ public class ibmPeerProcessorManager extends Processor implements Transport.Rece
             if (iotf_enabled == true) {
                 manager.errorLogger().info("Registering IoTF MQTT processor (singleton)...");
                 GenericMQTTProcessor p = new IoTFMQTTProcessor(manager,new MQTTTransport(manager.errorLogger(),manager.preferences()),http);
-                p.setMDSProcessor(mds_rest_processor);
                 me.addProcessor(p);
             }
             else if (starterkit_enabled == true) {
                 manager.errorLogger().info("Registering StarterKit MQTT processor (singleton)...");
                 GenericMQTTProcessor p = new StarterKitMQTTProcessor(manager,http);
-                p.setMDSProcessor(mds_rest_processor);
                 me.addProcessor(p);
             }
             else {
                 manager.errorLogger().info("Registering Standard MQTT processor (singleton)...");
                 GenericMQTTProcessor p = new GenericMQTTProcessor(manager,new MQTTTransport(manager.errorLogger(),manager.preferences()),http);
-                p.setMDSProcessor(mds_rest_processor);
                 me.addProcessor(p);
             }
         }

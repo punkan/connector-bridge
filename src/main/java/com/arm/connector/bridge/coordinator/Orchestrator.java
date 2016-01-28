@@ -1,7 +1,23 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
+/**
+ * @file    orchestrator.java
+ * @brief   orchestrator for the connector bridge
+ * @author  Doug Anson
+ * @version 1.0
+ * @see
+ *
+ * Copyright (c) 2016 ARM
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package com.arm.connector.bridge.coordinator;
@@ -19,6 +35,7 @@ import com.codesnippets4all.json.generators.JSONGenerator;
 import com.codesnippets4all.json.generators.JsonGeneratorFactory;
 import com.codesnippets4all.json.parsers.JSONParser;
 import java.util.ArrayList;
+import java.util.Map;
 
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
@@ -28,7 +45,7 @@ import javax.servlet.http.HttpServletResponse;
  * This the primary orchestrator for the connector bridge
  * @author Doug Anson
  */
-public class Orchestrator {
+public class Orchestrator implements MDSInterface, PeerInterface {
     private HttpServlet              m_servlet = null;
     
     private ErrorLogger              m_error_logger = null;
@@ -76,10 +93,7 @@ public class Orchestrator {
         
         // initialize our peer processor list
         this.initPeerProcessorList();
-        
-        // Simply link the mDS processor to the peer. The peer, when created, will automatically get linked to the mDS processor 
-        this.m_mds_rest_processor.setPeerProcessorList(this.m_peer_processor_list);
-        
+                
         // create the console manager
         this.m_console_manager = new ConsoleManager(this);
     }
@@ -93,12 +107,12 @@ public class Orchestrator {
         if (this.ibmPeerEnabled()) {
             // IBM/MQTT: create the MQTT processor manager
             this.errorLogger().info("Orchestrator: adding IBM IoTF/StarterKit/MQTT Processor");
-            this.m_peer_processor_list.add(ibmPeerProcessorManager.createPeerProcessor(this,this.m_mds_rest_processor,this.m_http));
+            this.m_peer_processor_list.add(ibmPeerProcessorManager.createPeerProcessor(this,this.m_http));
         }
         if (this.samplePeerEnabled()) {
             // Microsoft: create IoTEventHub processor
             this.errorLogger().info("Orchestrator: adding 3rd Party Sample REST Processor");
-            this.m_peer_processor_list.add(Sample3rdPartyProcessor.createPeerProcessor(this,this.m_mds_rest_processor,this.m_http));
+            this.m_peer_processor_list.add(Sample3rdPartyProcessor.createPeerProcessor(this,this.m_http));
         }
     }
     
@@ -216,5 +230,146 @@ public class Orchestrator {
     // get the JSON generation instance
     public JSONGenerator getJSONGenerator() {
         return this.m_json_generator;
+    }
+   
+    // get our ith peer processor
+    private PeerInterface peerProcessor(int index) {
+        if (index >= 0 && this.m_peer_processor_list != null && index < this.m_peer_processor_list.size()) {
+            return this.m_peer_processor_list.get(index); 
+        }
+        return null;
+    }
+    
+    // MDSInterface Orchestration
+    @Override
+    public void processMDSMessage(HttpServletRequest request, HttpServletResponse response) {
+        this.mds_rest_processor().processMDSMessage(request, response);
+    }
+
+    @Override
+    public void processDeregistrations(String[] deregistrations) {
+        this.mds_rest_processor().processDeregistrations(deregistrations);
+    }
+
+    @Override
+    public String subscribeToEndpointResource(String uri, Map options, Boolean init_webhook) {
+        return this.mds_rest_processor().subscribeToEndpointResource(uri, options, init_webhook);
+    }
+
+    @Override
+    public String subscribeToEndpointResource(String ep_name, String uri, Boolean init_webhook) {
+        return this.mds_rest_processor().subscribeToEndpointResource(ep_name, uri, init_webhook);
+    }
+
+    @Override
+    public String unsubscribeFromEndpointResource(String uri, Map options) {
+        return this.mds_rest_processor().unsubscribeFromEndpointResource(uri, options);
+    }
+
+    @Override
+    public String performDeviceDiscovery(Map options) {
+        return this.mds_rest_processor().performDeviceDiscovery(options);
+    }
+
+    @Override
+    public String performDeviceResourceDiscovery(String uri) {
+        return this.mds_rest_processor().performDeviceResourceDiscovery(uri);
+    }
+
+    @Override
+    public String processEndpointResourceOperation(String verb, String uri, Map options) {
+        return this.mds_rest_processor().processEndpointResourceOperation(verb, uri, options);
+    }
+
+    @Override
+    public String processEndpointResourceOperation(String verb, String ep_name, String uri) {
+        return this.mds_rest_processor().processEndpointResourceOperation(verb, ep_name, uri);
+    }
+
+    @Override
+    public String processEndpointResourceOperation(String verb, String ep_name, String uri, String value) {
+        return this.mds_rest_processor().processEndpointResourceOperation(verb, ep_name, uri, value);
+    }
+
+    @Override
+    public void setNotificationCallbackURL() {
+        this.mds_rest_processor().setNotificationCallbackURL();
+    }
+
+    @Override
+    public void resetNotificationCallbackURL() {
+        this.mds_rest_processor().resetNotificationCallbackURL();
+    }
+
+    // PeerInterface Orchestration
+    @Override
+    public String createAuthenticationHash() {
+        String hash = "";
+        for(int i=0;this.m_peer_processor_list != null && i<this.m_peer_processor_list.size();++i) {
+            hash += this.peerProcessor(i).createAuthenticationHash();
+        }
+        return hash;
+    }
+
+    @Override
+    public void processNewRegistration(Map message) {
+        for(int i=0;this.m_peer_processor_list != null && i<this.m_peer_processor_list.size();++i) {
+            this.peerProcessor(i).processNewRegistration(message);
+        }
+    }
+
+    @Override
+    public void processReRegistration(Map message) {
+        for(int i=0;this.m_peer_processor_list != null && i<this.m_peer_processor_list.size();++i) {
+            this.peerProcessor(i).processReRegistration(message);
+        }
+    }
+
+    @Override
+    public String[] processDeregistrations(Map message) {
+        ArrayList<String> deregistrations = new ArrayList<>();
+        for(int i=0;this.m_peer_processor_list != null && i<this.m_peer_processor_list.size();++i) {
+            String[] ith_deregistrations = this.peerProcessor(i).processDeregistrations(message);
+            for(int j=0;ith_deregistrations != null && j<ith_deregistrations.length;++j) {
+                boolean add = deregistrations.add(ith_deregistrations[j]);
+            }
+        }
+        String[] dereg_str_array = new String[deregistrations.size()];
+        return deregistrations.toArray(dereg_str_array); 
+    }
+
+    @Override
+    public void processRegistrationsExpired(Map message) {
+        for(int i=0;this.m_peer_processor_list != null && i<this.m_peer_processor_list.size();++i) {
+            this.peerProcessor(i).processRegistrationsExpired(message);
+        }
+    }
+
+    @Override
+    public void processAsyncResponses(Map message) {
+        for(int i=0;this.m_peer_processor_list != null && i<this.m_peer_processor_list.size();++i) {
+            this.peerProcessor(i).processAsyncResponses(message);
+        }
+    }
+
+    @Override
+    public void processNotification(Map message) {
+        for(int i=0;this.m_peer_processor_list != null && i<this.m_peer_processor_list.size();++i) {
+            this.peerProcessor(i).processNotification(message);
+        }
+    }
+
+    @Override
+    public void initListener() {
+        for(int i=0;this.m_peer_processor_list != null && i<this.m_peer_processor_list.size();++i) {
+            this.peerProcessor(i).initListener();
+        }
+    }
+
+    @Override
+    public void stopListener() {
+        for(int i=0;this.m_peer_processor_list != null && i<this.m_peer_processor_list.size();++i) {
+            this.peerProcessor(i).stopListener();
+        }
     }
 }

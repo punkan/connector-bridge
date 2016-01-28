@@ -1,7 +1,23 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
+/**
+ * @file    GenericMQTTProcessor.java
+ * @brief   Generic MQTT peer processor for connector bridge 
+ * @author  Doug Anson
+ * @version 1.0
+ * @see
+ *
+ * Copyright (c) 2016 ARM
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package com.arm.connector.bridge.coordinator.processors.ibm;
@@ -10,13 +26,12 @@ import com.arm.connector.bridge.coordinator.processors.core.AsyncResponseManager
 import com.arm.connector.bridge.coordinator.Orchestrator;
 import com.arm.connector.bridge.coordinator.processors.core.Processor;
 import com.arm.connector.bridge.coordinator.processors.core.SubscriptionList;
-import com.arm.connector.bridge.coordinator.processors.interfaces.MDSInterface;
 import com.arm.connector.bridge.coordinator.processors.interfaces.PeerInterface;
 import com.arm.connector.bridge.core.Utils;
 import com.arm.connector.bridge.transport.HttpTransport;
 import com.arm.connector.bridge.transport.MQTTTransport;
-import com.arm.connector.bridge.transport.Transport;
-import com.arm.connector.bridge.transport.TransportReceiveThread;
+import com.arm.connector.bridge.core.Transport;
+import com.arm.connector.bridge.core.TransportReceiveThread;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,7 +43,6 @@ import org.fusesource.mqtt.client.Topic;
  * @author Doug Anson
  */
 public class GenericMQTTProcessor extends Processor implements Transport.ReceiveListener, PeerInterface {
-    protected MDSInterface                  m_mds_processor = null;
     private String                          m_topic_root = null;
     protected SubscriptionList              m_subscriptions = null;
     protected boolean                       m_auto_subscribe_to_obs_resources = false;
@@ -45,19 +59,19 @@ public class GenericMQTTProcessor extends Processor implements Transport.Receive
     private HttpTransport                   m_http = null;
     
     // constructor (singleton)
-    public GenericMQTTProcessor(Orchestrator manager,MQTTTransport mqtt,HttpTransport http) {
-        this(manager,mqtt,null,http);
+    public GenericMQTTProcessor(Orchestrator orchestrator,MQTTTransport mqtt,HttpTransport http) {
+        this(orchestrator,mqtt,null,http);
     }
     
     // constructor (suffix for preferences)
-    public GenericMQTTProcessor(Orchestrator manager,MQTTTransport mqtt,String suffix,HttpTransport http) {
-        super(manager,suffix);
+    public GenericMQTTProcessor(Orchestrator orchestrator,MQTTTransport mqtt,String suffix,HttpTransport http) {
+        super(orchestrator,suffix);
         
-        // allocate our AsyncResponse manager
-        this.m_async_response_manager = new AsyncResponseManager(manager);
+        // allocate our AsyncResponse orchestrator
+        this.m_async_response_manager = new AsyncResponseManager(orchestrator);
         
         // set our domain
-        this.m_mds_domain = manager.getDomain();
+        this.m_mds_domain = orchestrator.getDomain();
         
         // HTTP support if we need it
         this.m_http = http;
@@ -69,14 +83,14 @@ public class GenericMQTTProcessor extends Processor implements Transport.Receive
         this.m_suffix = suffix;
         
         // Get the device data key if one exists
-        this.m_device_data_key = manager.preferences().valueOf("mqtt_device_data_key",this.m_suffix);
+        this.m_device_data_key = orchestrator.preferences().valueOf("mqtt_device_data_key",this.m_suffix);
         
         // build out our configuration
-        this.m_mqtt_host = manager.preferences().valueOf("mqtt_address",this.m_suffix);
-        this.m_mqtt_port = manager.preferences().intValueOf("mqtt_port",this.m_suffix);
+        this.m_mqtt_host = orchestrator.preferences().valueOf("mqtt_address",this.m_suffix);
+        this.m_mqtt_port = orchestrator.preferences().intValueOf("mqtt_port",this.m_suffix);
         
         // MDS MQTT Request TAG
-        this.m_mds_mqtt_request_tag = manager.preferences().valueOf("mds_mqtt_request_tag",this.m_suffix);
+        this.m_mds_mqtt_request_tag = orchestrator.preferences().valueOf("mds_mqtt_request_tag",this.m_suffix);
         if (this.m_mds_mqtt_request_tag == null) {
             this.m_mds_mqtt_request_tag = "/request";
         }
@@ -85,7 +99,7 @@ public class GenericMQTTProcessor extends Processor implements Transport.Receive
         }
         
         // MDS topic root
-        this.m_mds_topic_root = manager.preferences().valueOf("mqtt_mds_topic_root",this.m_suffix);
+        this.m_mds_topic_root = orchestrator.preferences().valueOf("mqtt_mds_topic_root",this.m_suffix);
         if (this.m_mds_topic_root == null || this.m_mds_topic_root.length() == 0) this.m_mds_topic_root = "";
 
         // assign our MQTT transport if we have one...
@@ -95,13 +109,13 @@ public class GenericMQTTProcessor extends Processor implements Transport.Receive
         }
         
         // initialize subscriptions
-        this.m_subscriptions = new SubscriptionList(manager.errorLogger(),manager.preferences());
+        this.m_subscriptions = new SubscriptionList(orchestrator.errorLogger(),orchestrator.preferences());
         
         // initialize the topic root
         this.initTopicRoot();
         
         // auto-subscribe behavior
-        this.m_auto_subscribe_to_obs_resources = manager.preferences().booleanValueOf("mqtt_obs_auto_subscribe",this.m_suffix);
+        this.m_auto_subscribe_to_obs_resources = orchestrator.preferences().booleanValueOf("mqtt_obs_auto_subscribe",this.m_suffix);
         
         // setup our MQTT listener if we have one...
         if (mqtt != null) {
@@ -120,7 +134,7 @@ public class GenericMQTTProcessor extends Processor implements Transport.Receive
     protected Map tryJSONParse(String payload) {
         Map result = null;
         try {
-            result = this.manager().getJSONParser().parseJson(payload);
+            result = this.orchestrator().getJSONParser().parseJson(payload);
             return result;
         }
         catch (Exception ex) {
@@ -232,14 +246,6 @@ public class GenericMQTTProcessor extends Processor implements Transport.Receive
         }
     }
     
-    public void setMDSProcessor(MDSInterface mds) {
-        this.m_mds_processor = mds;
-    }
-    
-    protected MDSInterface mdsProcessor() { 
-        return this.m_mds_processor; 
-    }
-    
     // process a mDS notification for generic MQTT peers
     @Override
     public void processNotification(Map data) {
@@ -316,7 +322,7 @@ public class GenericMQTTProcessor extends Processor implements Transport.Receive
     @Override
     public String[] processDeregistrations(Map parsed) {
         String[] deregistrations = this.parseDeRegistrationBody(parsed);
-        this.mdsProcessor().processDeregistrations(deregistrations);
+        this.orchestrator().processDeregistrations(deregistrations);
         return deregistrations;
     }
     
@@ -366,7 +372,7 @@ public class GenericMQTTProcessor extends Processor implements Transport.Receive
                 Map resource = (Map)resources.get(j); 
                 if (this.m_subscriptions.containsSubscription(this.m_mds_domain,(String)endpoint.get("ep"),(String)resource.get("path"))) {
                     // re-subscribe to this resource
-                    this.mdsProcessor().subscribeToEndpointResource((String)endpoint.get("ep"),(String)resource.get("path"),false);
+                    this.orchestrator().subscribeToEndpointResource((String)endpoint.get("ep"),(String)resource.get("path"),false);
                     
                     // SYNC: here we dont have to worry about Sync options - we simply dispatch the subscription to mDS and setup for it...
                     this.m_subscriptions.removeSubscription(this.m_mds_domain,(String)endpoint.get("ep"),(String)resource.get("path"));
@@ -374,7 +380,7 @@ public class GenericMQTTProcessor extends Processor implements Transport.Receive
                 }
                 else if (this.isObservableResource(resource) && this.m_auto_subscribe_to_obs_resources == true) {
                     // auto-subscribe to observable resources... if enabled.
-                    this.mdsProcessor().subscribeToEndpointResource((String)endpoint.get("ep"),(String)resource.get("path"),false);
+                    this.orchestrator().subscribeToEndpointResource((String)endpoint.get("ep"),(String)resource.get("path"),false);
                     
                     // SYNC: here we dont have to worry about Sync options - we simply dispatch the subscription to mDS and setup for it...
                     this.m_subscriptions.removeSubscription(this.m_mds_domain,(String)endpoint.get("ep"),(String)resource.get("path"));
@@ -408,7 +414,7 @@ public class GenericMQTTProcessor extends Processor implements Transport.Receive
         // Endpoint Discovery....
         if (this.isEndpointDiscovery(topic) && this.isNotDomainEndpointsOnly(topic) == false) {
             Map options = (Map)this.parseJson(message);
-            String json = this.mdsProcessor().performDeviceDiscovery(options);
+            String json = this.orchestrator().performDeviceDiscovery(options);
             if (json != null && json.length() > 0) {
                 String response_topic = this.stripRequestTAG(topic);
                 this.mqtt().sendMessage(response_topic, json);
@@ -427,7 +433,7 @@ public class GenericMQTTProcessor extends Processor implements Transport.Receive
                 }
                 
                 // perform the operation
-                json = this.mdsProcessor().processEndpointResourceOperation(verb, this.stripRequestTAG(topic), options);
+                json = this.orchestrator().processEndpointResourceOperation(verb, this.stripRequestTAG(topic), options);
             }
             
             // send a response back if we have one...
@@ -462,7 +468,7 @@ public class GenericMQTTProcessor extends Processor implements Transport.Receive
         
         // Endpoint Resource Discovery...
         else if (this.isEndpointResourcesDiscovery(topic)) {
-            String json = this.mdsProcessor().performDeviceResourceDiscovery(this.stripRequestTAG(topic));
+            String json = this.orchestrator().performDeviceResourceDiscovery(this.stripRequestTAG(topic));
             if (json != null && json.length() > 0) {
                 String response_topic = this.stripRequestTAG(topic);
                 this.mqtt().sendMessage(response_topic, json);
@@ -475,7 +481,7 @@ public class GenericMQTTProcessor extends Processor implements Transport.Receive
             String json = null;
             if (options != null && options.containsKey("unsubscribe") == true) {
                 // Unsubscribe 
-                json = this.mdsProcessor().unsubscribeFromEndpointResource(this.stripRequestTAG(topic), options);
+                json = this.orchestrator().unsubscribeFromEndpointResource(this.stripRequestTAG(topic), options);
                 
                 // remove from the subscription list
                 //this.errorLogger().info("processMessage(MQTT): TOPIC: " + topic);
@@ -486,7 +492,7 @@ public class GenericMQTTProcessor extends Processor implements Transport.Receive
             else {
                 // Subscribe
                 this.errorLogger().info("processMessage(MQTT-STD): sending subscription request");
-                json = this.mdsProcessor().subscribeToEndpointResource(this.stripRequestTAG(topic),options,true);
+                json = this.orchestrator().subscribeToEndpointResource(this.stripRequestTAG(topic),options,true);
                 
                 // add to the subscription list
                 //this.errorLogger().info("processMessage(MQTT): TOPIC: " + topic);

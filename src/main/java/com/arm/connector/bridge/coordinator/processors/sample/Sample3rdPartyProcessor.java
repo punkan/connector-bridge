@@ -1,14 +1,29 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
+/**
+ * @file    Sample3rdPartyProcessor.java
+ * @brief   Stubbed out Sample 3rd Party Peer Processor
+ * @author  Doug Anson
+ * @version 1.0
+ * @see
+ *
+ * Copyright (c) 2016 ARM
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package com.arm.connector.bridge.coordinator.processors.sample;
 
 import com.arm.connector.bridge.coordinator.Orchestrator;
 import com.arm.connector.bridge.coordinator.processors.core.Processor;
-import com.arm.connector.bridge.coordinator.processors.interfaces.MDSInterface;
 import com.arm.connector.bridge.coordinator.processors.interfaces.PeerInterface;
 import com.arm.connector.bridge.transport.HttpTransport;
 import java.util.Map;
@@ -19,11 +34,10 @@ import java.util.Map;
  */
 public class Sample3rdPartyProcessor extends Processor implements PeerInterface {
     private HttpTransport  m_http = null;
-    private MDSInterface   m_mds_processor = null;
     private String         m_suffix = null;
    
     // Factory method for initializing the Sample 3rd Party peer
-    public static Sample3rdPartyProcessor createPeerProcessor(Orchestrator manager,MDSInterface mds_rest_processor,HttpTransport http) {
+    public static Sample3rdPartyProcessor createPeerProcessor(Orchestrator manager,HttpTransport http) {
         // create me
         Sample3rdPartyProcessor me = new Sample3rdPartyProcessor(manager,http);
         
@@ -34,16 +48,15 @@ public class Sample3rdPartyProcessor extends Processor implements PeerInterface 
     }
     
     // constructor
-    public Sample3rdPartyProcessor(Orchestrator manager,HttpTransport http) {
-        this(manager,http,null);
+    public Sample3rdPartyProcessor(Orchestrator orchestrator,HttpTransport http) {
+        this(orchestrator,http,null);
     }
     
     // constructor
-    public Sample3rdPartyProcessor(Orchestrator manager,HttpTransport http,String suffix) {
-        super(manager,null);
+    public Sample3rdPartyProcessor(Orchestrator orchestrator,HttpTransport http,String suffix) {
+        super(orchestrator,null);
         this.m_http = http;
-        this.m_mds_domain = manager.getDomain();
-        this.m_mds_processor = manager.mds_rest_processor();         // mDC REST processor
+        this.m_mds_domain = orchestrator.getDomain();
         this.m_suffix = suffix;
         
         // Sample 3rd Party peer Processor Announce

@@ -1,12 +1,27 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
+/**
+ * @file    MDSProcessor.java
+ * @brief   mDS Peer Processor for the connector bridge
+ * @author  Doug Anson
+ * @version 1.0
+ * @see
+ *
+ * Copyright (c) 2016 ARM
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package com.arm.connector.bridge.coordinator.processors.arm;
 
-import com.arm.connector.bridge.coordinator.processors.interfaces.PeerInterface;
 import com.arm.connector.bridge.coordinator.processors.interfaces.MDSInterface;
 import com.arm.connector.bridge.coordinator.Orchestrator;
 import com.arm.connector.bridge.servlet.Manager;
@@ -16,14 +31,13 @@ import com.arm.connector.bridge.transport.HttpTransport;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 /**
- *
+ * mDS/mDC Peer processor for the connector bridge
  * @author Doug Anson
  */
 public class MDSProcessor extends Processor implements MDSInterface {
@@ -36,7 +50,6 @@ public class MDSProcessor extends Processor implements MDSInterface {
     private String                     m_api_token = null;
     private boolean                    m_use_api_token = false;
     private String                     m_mds_gw_callback = null;
-    protected ArrayList<PeerInterface> m_peer_processor_list = null;
     private String                     m_default_mds_uri = null;
     private String                     m_default_gw_uri = null;
     private boolean                    m_use_https_dispatch = false;
@@ -48,27 +61,26 @@ public class MDSProcessor extends Processor implements MDSInterface {
     private boolean                    m_skip_validation = false;
     
     // constructor
-    public MDSProcessor(Orchestrator manager,HttpTransport http) {
-        super(manager,null);
+    public MDSProcessor(Orchestrator orchestrator,HttpTransport http) {
+        super(orchestrator,null);
         this.m_http = http;
-        this.m_mds_domain = manager.getDomain();
-        this.m_mds_host = manager.preferences().valueOf("mds_address");
-        this.m_mds_port = manager.preferences().intValueOf("mds_port");
-        this.m_mds_username = manager.preferences().valueOf("mds_username");
-        this.m_mds_password = manager.preferences().valueOf("mds_password");
-        this.m_content_type = manager.preferences().valueOf("mds_content_type");
-        this.m_mds_gw_callback = manager.preferences().valueOf("mds_gw_callback");
+        this.m_mds_domain = orchestrator.getDomain();
+        this.m_mds_host = orchestrator.preferences().valueOf("mds_address");
+        this.m_mds_port = orchestrator.preferences().intValueOf("mds_port");
+        this.m_mds_username = orchestrator.preferences().valueOf("mds_username");
+        this.m_mds_password = orchestrator.preferences().valueOf("mds_password");
+        this.m_content_type = orchestrator.preferences().valueOf("mds_content_type");
+        this.m_mds_gw_callback = orchestrator.preferences().valueOf("mds_gw_callback");
         this.m_use_https_dispatch = this.prefBoolValue("mds_use_https_dispatch");
         this.m_mds_version = this.prefValue("mds_version");
         this.m_mds_gw_use_ssl = this.prefBoolValue("mds_gw_use_ssl");
         this.m_use_api_token = this.prefBoolValue("mds_use_api_token");
-        if (this.m_use_api_token == true) this.m_api_token = this.manager().preferences().valueOf("mds_api_token");
-        this.m_peer_processor_list = null;
+        if (this.m_use_api_token == true) this.m_api_token = this.orchestrator().preferences().valueOf("mds_api_token");
         
         // validation check override
-        this.m_skip_validation = manager.preferences().booleanValueOf("mds_skip_validation_override");
+        this.m_skip_validation = orchestrator.preferences().booleanValueOf("mds_skip_validation_override");
         if (this.m_skip_validation == true) {
-            manager.errorLogger().info("MDSProcessor: Validation Skip Override ENABLED");
+            orchestrator.errorLogger().info("MDSProcessor: Validation Skip Override ENABLED");
         }
         
         // initialize the default type of URI for contacting us (GW) - this will be sent to mDS for the webhook URL
@@ -154,15 +166,15 @@ public class MDSProcessor extends Processor implements MDSInterface {
     private void sanityCheckAuthType() {
          // sanity check...
         if (this.m_use_api_token == true && (this.m_api_token == null || this.m_api_token.length() == 0)) {
-            this.manager().errorLogger().warning("WARNING: API TOKEN AUTH enabled but no token found/acquired... disabling...");
+            this.orchestrator().errorLogger().warning("WARNING: API TOKEN AUTH enabled but no token found/acquired... disabling...");
             this.m_use_api_token = false;
         }
         
         // DEBUG
         if (this.useAPITokenAuth())
-            this.manager().errorLogger().info("Using API TOKEN Authentication");
+            this.orchestrator().errorLogger().info("Using API TOKEN Authentication");
         else
-            this.manager().errorLogger().info("Using BASIC Authentication");
+            this.orchestrator().errorLogger().info("Using BASIC Authentication");
     }
     
     // is our mDS instance actually mDC?
@@ -170,38 +182,9 @@ public class MDSProcessor extends Processor implements MDSInterface {
         return (this.m_use_api_token == true && this.m_using_callback_webhooks == true && this.m_use_https_dispatch == true);
     }
     
-    // set our peer processor
-    @Override
-    public void setPeerProcessorList(ArrayList<PeerInterface> list) {
-        this.m_peer_processor_list = list;
-    }
-    
-    // get our peer processor list
-    public ArrayList<PeerInterface> peerProcessorList() { 
-        return this.m_peer_processor_list; 
-    }
-    
-    // get our ith peer processor
-    public PeerInterface peerProcessor(int index) {
-        if (index >= 0 && this.m_peer_processor_list != null && index < this.m_peer_processor_list.size()) {
-            return this.m_peer_processor_list.get(index); 
-        }
-        return null;
-    }
-    
     // mDS is using Token Auth
     private boolean useAPITokenAuth() { 
         return this.m_use_api_token; 
-    }
-    
-    // build out the authentication hash
-    private String createAuthenticationHash() {
-        String hash = "";
-        for(int i=0;this.m_peer_processor_list != null && i<this.m_peer_processor_list.size();++i) {
-            PeerInterface peer = this.m_peer_processor_list.get(i);
-            hash += peer.createAuthenticationHash();
-        }
-        return hash;
     }
     
     // validate the notification
@@ -294,23 +277,23 @@ public class MDSProcessor extends Processor implements MDSInterface {
                     }
 
                     // DEBUG
-                    this.manager().errorLogger().info("getNotificationCallbackURL(callback): url: " + url + " headers: " + headers + " dispatch: " + dispatch_url);
+                    this.orchestrator().errorLogger().info("getNotificationCallbackURL(callback): url: " + url + " headers: " + headers + " dispatch: " + dispatch_url);
                 }
                 else {
                     // use the Deprecated push-url API... (no JSON)
                     url = json;
 
                     // DEBUG
-                    this.manager().errorLogger().info("getNotificationCallbackURL(push-url): url: " + url + " dispatch: " + dispatch_url);
+                    this.orchestrator().errorLogger().info("getNotificationCallbackURL(push-url): url: " + url + " dispatch: " + dispatch_url);
                 }
             }
             else {
                 // no response received back from mDS
-                this.manager().errorLogger().warning("getNotificationCallbackURL: no response recieved from dispatch: " + dispatch_url);
+                this.orchestrator().errorLogger().warning("getNotificationCallbackURL: no response recieved from dispatch: " + dispatch_url);
             }
         }
         catch (Exception ex) {
-            this.manager().errorLogger().warning("getNotificationCallbackURL: exception: " + ex.getMessage() + ". json=" + json);
+            this.orchestrator().errorLogger().warning("getNotificationCallbackURL: exception: " + ex.getMessage() + ". json=" + json);
         }
         
         return url;
@@ -746,52 +729,50 @@ public class MDSProcessor extends Processor implements MDSInterface {
     // process and route the mDS message to the appropriate peer method
     private void processMDSMessage(String json,HttpServletRequest request) {
         // DEBUG
-        //this.manager().errorLogger().info("processMDSMessage(mDS): Received message from mDS: " + json);
+        //this.orchestrator().errorLogger().info("processMDSMessage(mDS): Received message from mDS: " + json);
         
-        // loop through all of the peer processors and call their interfaces with this mDS message
-        for(int i=0;this.m_peer_processor_list != null && i<this.m_peer_processor_list.size();++i) {
-            try {
-                if (json != null && json.length() > 0 && json.equalsIgnoreCase("{}") == false) {
-                    Map parsed = (Map)this.parseJson(json);
-                    if (parsed != null) {
-                        if (parsed.containsKey("notifications")) {
-                            if (this.validateNotification(request)) {
-                                // DEBUG
-                                //this.errorLogger().info("processMDSMessage: notification VALIDATED");
+        // tell the orchestrator to call its peer processors with this mDS message
+        try {
+            if (json != null && json.length() > 0 && json.equalsIgnoreCase("{}") == false) {
+                Map parsed = (Map)this.parseJson(json);
+                if (parsed != null) {
+                    if (parsed.containsKey("notifications")) {
+                        if (this.validateNotification(request)) {
+                            // DEBUG
+                            //this.errorLogger().info("processMDSMessage: notification VALIDATED");
 
-                                // validated notification... process it...
-                                this.peerProcessor(i).processNotification(parsed);
-                            }
-                            else {
-                                // validation FAILED. Note but do not process...
-                                this.errorLogger().warning("processMDSMessage(mDS): notification validation FAILED. Not processed (OK)");
-                            }
+                            // validated notification... process it...
+                            this.orchestrator().processNotification(parsed);
                         }
-
-                        // DEBUG
-                        //this.errorLogger().info("processMDSMessage(STD) Parsed: " + parsed);
-
-                        // act on the request...
-                        if (parsed.containsKey("registrations")) this.peerProcessor(i).processNewRegistration(parsed);
-                        if (parsed.containsKey("reg-updates")) this.peerProcessor(i).processReRegistration(parsed);
-                        if (parsed.containsKey("de-registrations")) this.peerProcessor(i).processDeregistrations(parsed);
-                        if (parsed.containsKey("registrations-expired")) this.peerProcessor(i).processRegistrationsExpired(parsed);
-                        if (parsed.containsKey("async-responses")) this.peerProcessor(i).processAsyncResponses(parsed);
+                        else {
+                            // validation FAILED. Note but do not process...
+                            this.errorLogger().warning("processMDSMessage(mDS): notification validation FAILED. Not processed (OK)");
+                        }
                     }
-                    else {
-                        // parseJson() failed...
-                        this.errorLogger().warning("processMDSMessage(mDS): unable to parse JSON: " + json);
-                    }
+
+                    // DEBUG
+                    //this.errorLogger().info("processMDSMessage(STD) Parsed: " + parsed);
+
+                    // act on the request...
+                    if (parsed.containsKey("registrations")) this.orchestrator().processNewRegistration(parsed);
+                    if (parsed.containsKey("reg-updates")) this.orchestrator().processReRegistration(parsed);
+                    if (parsed.containsKey("de-registrations")) this.orchestrator().processDeregistrations(parsed);
+                    if (parsed.containsKey("registrations-expired")) this.orchestrator().processRegistrationsExpired(parsed);
+                    if (parsed.containsKey("async-responses")) this.orchestrator().processAsyncResponses(parsed);
                 }
                 else {
-                    // empty JSON... so not parsed
-                    this.errorLogger().warning("processMDSMessage(mDS): empty JSON not parsed (OK).");
+                    // parseJson() failed...
+                    this.errorLogger().warning("processMDSMessage(mDS): unable to parse JSON: " + json);
                 }
             }
-            catch (Exception ex) {
-                // exception during JSON parsing
-                this.errorLogger().warning("processMDSMessage(mDS) Exception during notification body JSON parsing: " + json, ex);
+            else {
+                // empty JSON... so not parsed
+                this.errorLogger().warning("processMDSMessage(mDS): empty JSON not parsed (OK).");
             }
+        }
+        catch (Exception ex) {
+            // exception during JSON parsing
+            this.errorLogger().warning("processMDSMessage(mDS) Exception during notification body JSON parsing: " + json, ex);
         }
     }
     
