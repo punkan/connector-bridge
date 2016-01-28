@@ -11,7 +11,7 @@ import com.arm.connector.bridge.coordinator.processors.ibm.ibmPeerProcessorManag
 import com.arm.connector.bridge.coordinator.processors.interfaces.MDSInterface;
 import com.arm.connector.bridge.coordinator.processors.arm.MDSProcessor;
 import com.arm.connector.bridge.coordinator.processors.interfaces.PeerInterface;
-import com.arm.connector.bridge.coordinator.processors.ms.IoTEventHubRESTProcessor;
+import com.arm.connector.bridge.coordinator.processors.sample.Sample3rdPartyProcessor;
 import com.arm.connector.bridge.core.ErrorLogger;
 import com.arm.connector.bridge.preferences.PreferenceManager;
 import com.arm.connector.bridge.transport.HttpTransport;
@@ -95,10 +95,10 @@ public class Orchestrator {
             this.errorLogger().info("Orchestrator: adding IBM IoTF/StarterKit/MQTT Processor");
             this.m_peer_processor_list.add(ibmPeerProcessorManager.createPeerProcessor(this,this.m_mds_rest_processor,this.m_http));
         }
-        if (this.msPeerEnabled()) {
+        if (this.samplePeerEnabled()) {
             // Microsoft: create IoTEventHub processor
-            this.errorLogger().info("Orchestrator: adding MS IoTEventHub Processor");
-            this.m_peer_processor_list.add(IoTEventHubRESTProcessor.createPeerProcessor(this,this.m_mds_rest_processor,this.m_http));
+            this.errorLogger().info("Orchestrator: adding 3rd Party Sample REST Processor");
+            this.m_peer_processor_list.add(Sample3rdPartyProcessor.createPeerProcessor(this,this.m_mds_rest_processor,this.m_http));
         }
     }
     
@@ -107,9 +107,9 @@ public class Orchestrator {
         return (this.preferences().booleanValueOf("enable_iotf_addon") || this.preferences().booleanValueOf("enable_starterkit_addon"));
     }
     
-    // use MS peer processor?
-    private Boolean msPeerEnabled() {
-        return this.preferences().booleanValueOf("enable_iot_eventhub_addon");
+    // use sample 3rd Party peer processor?
+    private Boolean samplePeerEnabled() {
+        return this.preferences().booleanValueOf("enable_3rd_party_rest_processor");
     }
     
     // are the listeners active?
