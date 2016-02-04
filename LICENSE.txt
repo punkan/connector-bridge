@@ -1,0 +1,6 @@
+Copyright 2015. ARM Ltd. All rights reserved.
+
+Use of this software is restricted by the terms of the license under which this software has been
+distributed (the "License"). Any use outside the express terms of the License, including wholly
+unlicensed use, is prohibited. You may not use this software unless you have been expressly granted
+the right to use it under the License.
