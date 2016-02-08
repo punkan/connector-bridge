@@ -35,6 +35,10 @@ public class Main
         ErrorLogger logger = new ErrorLogger();
         PreferenceManager preferences = new PreferenceManager(logger);
         
+        // configure the error logger logging level
+        logger.configureLoggingLevel(preferences);
+        
+        // initialize the server,,,
         Server server = new Server(preferences.intValueOf("mds_gw_port"));
         
         ServletContextHandler context = new ServletContextHandler(ServletContextHandler.SESSIONS);

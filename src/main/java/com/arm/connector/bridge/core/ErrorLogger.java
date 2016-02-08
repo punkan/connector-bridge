@@ -16,6 +16,7 @@
 
 package com.arm.connector.bridge.core;
 
+import com.arm.connector.bridge.preferences.PreferenceManager;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.ArrayList;
@@ -74,33 +75,51 @@ public class ErrorLogger extends BaseClass {
     /**
      *
      */
-    public static int MAX_LOG_ENTRIES = 9000;     // reset the list after retaining this many entries
+    public static int MAX_LOG_ENTRIES = 1000;     // reset the list after retaining this many entries
 
-    private String m_message;              // our message
-    private Exception m_exception;            // our exception
-    private int m_level;                // error classification level
-    private int m_mask = SHOW_ALL;      // default error classification mask
-    private volatile ArrayList<String> m_log = null;           // error log
+    private String m_message;                                   // our message
+    private Exception m_exception;                              // our exception
+    private int m_level;                                        // error classification level
+    private int m_mask = SHOW_ALL;                              // default error classification mask
+    private volatile ArrayList<String> m_log = null;            // error log
 
-    // constructor
     /**
-     *
+     * constructor
      */
     public ErrorLogger() {
         super(null, null);
         this.m_message = ErrorLogger.DEFAULT_MESSAGE;
         this.m_exception = null;
         this.m_level = ErrorLogger.INFO;
-        this.m_mask = SHOW_ALL;
+        this.m_mask = ErrorLogger.SHOW_ALL;
         this.m_log = new ArrayList<>();
     }
-
-    // set the mask
-    /**
-     *
-     * @param mask
-     */
-    public void setLoggingMask(int mask) {
+    
+    /*
+    * Configure the logging level
+    */
+    public void configureLoggingLevel(PreferenceManager preferences) {
+        String config = preferences.valueOf("mds_bridge_error_level");
+        if (config != null && config.length() > 0) {
+            int mask = 0;
+            if (config.contains("info")) {
+                mask |= ErrorLogger.SHOW_INFO;
+            }
+            if (config.contains("warning")) {
+                mask |= ErrorLogger.SHOW_WARNING;
+            }
+            if (config.contains("critical")) {
+                mask |= ErrorLogger.SHOW_CRITICAL;
+            }
+            if (config.contains("all")) {
+                mask = ErrorLogger.SHOW_ALL;
+            }
+            this.setLoggingMask(mask);
+        }
+    }
+    
+    // set the logging mask
+    private void setLoggingMask(int mask) {
         this.m_mask = mask;
     }
 
@@ -114,9 +133,8 @@ public class ErrorLogger extends BaseClass {
         }
     }
 
-    // log entry - messages only
     /**
-     *
+     * log entry - messages only
      * @param message
      */
     public void info(String message) {
@@ -139,9 +157,8 @@ public class ErrorLogger extends BaseClass {
         this.log(ErrorLogger.CRITICAL, message, null);
     }
 
-    // log entry - messages and exceptions
     /**
-     *
+     * log entry - messages and exceptions
      * @param message
      * @param ex
      */
@@ -167,9 +184,8 @@ public class ErrorLogger extends BaseClass {
         this.log(ErrorLogger.CRITICAL, message, ex);
     }
 
-    // log entry - exceptions only
     /**
-     *
+     * log entry - exceptions only
      * @param ex
      */
     public void info(Exception ex) {
