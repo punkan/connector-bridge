@@ -44,15 +44,15 @@ public class IoTFMQTTProcessor extends GenericMQTTProcessor implements Transport
     private String                  m_iotf_coap_cmd_topic_delete = null;
     private HashMap<String,Object>  m_iotf_endpoints = null;
     private String                  m_iotf_org_id = null;
-    private String                  m_iotf_api_key = null;
+    private String                  m_iotf_org_key = null;
     private String                  m_iotf_device_type = null;
     private String                  m_client_id_template = null;
     private String                  m_iotf_device_data_key = null;
     private Boolean                 m_use_clean_session = false;
     
     // IoTF bindings
-    private String                  m_iotf_username = null;
-    private String                  m_iotf_password = null;
+    private String                  m_iotf_api_key = null;
+    private String                  m_iotf_auth_token = null;
     
     // RTI 
     private boolean                 m_rti_format_enable = false;
@@ -77,7 +77,7 @@ public class IoTFMQTTProcessor extends GenericMQTTProcessor implements Transport
                         
         // get our defaults
         this.m_iotf_org_id = this.orchestrator().preferences().valueOf("iotf_org_id",this.m_suffix);
-        this.m_iotf_api_key = this.orchestrator().preferences().valueOf("iotf_api_key",this.m_suffix);
+        this.m_iotf_org_key = this.orchestrator().preferences().valueOf("iotf_org_key",this.m_suffix);
         this.m_iotf_device_type = this.orchestrator().preferences().valueOf("iotf_device_type",this.m_suffix);
         this.m_mqtt_ip_address = this.orchestrator().preferences().valueOf("iotf_mqtt_ip_address",this.m_suffix);
         this.m_mqtt_port = this.orchestrator().preferences().intValueOf("iotf_mqtt_port",this.m_suffix);
@@ -105,10 +105,10 @@ public class IoTFMQTTProcessor extends GenericMQTTProcessor implements Transport
         this.m_iotf_coap_cmd_topic_delete = this.orchestrator().preferences().valueOf("iotf_coap_cmd_topic",this.m_suffix).replace("__COMMAND_TYPE__","delete");
         
         // establish default bindings
-        this.m_iotf_username = this.orchestrator().preferences().valueOf("iotf_username",this.m_suffix).replace("__ORG_ID__",this.m_iotf_org_id).replace("__API_KEY__",this.m_iotf_api_key);
-        this.m_iotf_password = this.orchestrator().preferences().valueOf("iotf_password",this.m_suffix);
+        this.m_iotf_api_key = this.orchestrator().preferences().valueOf("iotf_api_key",this.m_suffix).replace("__ORG_ID__",this.m_iotf_org_id).replace("__API_KEY__",this.m_iotf_org_key);
+        this.m_iotf_auth_token = this.orchestrator().preferences().valueOf("iotf_auth_token",this.m_suffix);
         
-        // resync org_id and m_iotf_api_key
+        // resync org_id and m_iotf_org_key
         this.parseIoTFUsername();
         
         // create the client ID
@@ -117,16 +117,16 @@ public class IoTFMQTTProcessor extends GenericMQTTProcessor implements Transport
         
         // IoTF Device Manager - will initialize and update our IoTF bindings/metadata
         this.m_iotf_device_manager = new IoTFDeviceManager(this.orchestrator().errorLogger(),this.orchestrator().preferences(),this.m_suffix,http);
-        this.m_iotf_device_manager.updateIoTFBindings(this.m_iotf_org_id, this.m_iotf_api_key);
-        this.m_iotf_username = this.m_iotf_device_manager.updateUsernameBinding(this.m_iotf_username);
-        this.m_iotf_password = this.m_iotf_device_manager.updatePasswordBinding(this.m_iotf_password);
+        this.m_iotf_device_manager.updateIoTFBindings(this.m_iotf_org_id, this.m_iotf_org_key);
+        this.m_iotf_api_key = this.m_iotf_device_manager.updateUsernameBinding(this.m_iotf_api_key);
+        this.m_iotf_auth_token = this.m_iotf_device_manager.updatePasswordBinding(this.m_iotf_auth_token);
         this.m_client_id = this.m_iotf_device_manager.updateClientIDBinding(this.m_client_id);
         this.m_mqtt_ip_address = this.m_iotf_device_manager.updateHostnameBinding(this.m_mqtt_ip_address);
         this.m_iotf_device_type = this.m_iotf_device_manager.updateDeviceType(this.m_iotf_device_type);
         
         // create the transport
-        mqtt.setUsername(this.m_iotf_username);
-        mqtt.setPassword(this.m_iotf_password);
+        mqtt.setUsername(this.m_iotf_api_key);
+        mqtt.setPassword(this.m_iotf_auth_token);
                 
         // add the transport
         this.initMQTTTransportList();
@@ -138,14 +138,14 @@ public class IoTFMQTTProcessor extends GenericMQTTProcessor implements Transport
     
     // parse the IoTF Username
     private void parseIoTFUsername() {
-        String[] elements = this.m_iotf_username.replace("-"," ").split(" ");
+        String[] elements = this.m_iotf_api_key.replace("-"," ").split(" ");
         if (elements != null && elements.length >= 3) {
             this.m_iotf_org_id = elements[1];
-            this.m_iotf_api_key = elements[2];
+            this.m_iotf_org_key = elements[2];
             //this.errorLogger().info("IoTF: org_id: " + elements[1] + " apikey: " + elements[2]);
         }
         else {
-            this.errorLogger().info("IoTF: unable to parse IoTF Username: " + this.m_iotf_username);
+            this.errorLogger().info("IoTF: unable to parse IoTF Username: " + this.m_iotf_api_key);
         }
     }
     
