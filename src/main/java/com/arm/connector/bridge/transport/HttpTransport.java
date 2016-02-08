@@ -468,6 +468,9 @@ public class HttpTransport extends BaseClass {
                 connection.setRequestProperty("Content-Type", content_type);
                 connection.setRequestProperty("Accept", "*/*");
             }
+            
+            // add Connection: keep-alive
+            connection.setRequestProperty("Connection", "keep-alive");
 
             // special gorp for HTTP DELETE
             if (verb != null && verb.equalsIgnoreCase("delete")) {
