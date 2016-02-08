@@ -240,8 +240,13 @@ public class Utils {
     
     // create a URL-safe Token
     public static String createURLSafeToken(String seed) {
-        byte[] b64 = Base64.encodeBase64(seed.getBytes());
-        return new String(b64);
+        try {
+            byte[] b64 = Base64.encodeBase64(seed.getBytes());
+            return new String(b64);
+        }
+        catch (Exception ex) {
+            return new String("exception");
+        }
     }
     
     // create Authentication Hash

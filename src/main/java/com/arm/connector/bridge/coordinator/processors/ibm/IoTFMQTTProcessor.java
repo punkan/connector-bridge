@@ -105,7 +105,7 @@ public class IoTFMQTTProcessor extends GenericMQTTProcessor implements Transport
         this.m_iotf_coap_cmd_topic_delete = this.orchestrator().preferences().valueOf("iotf_coap_cmd_topic",this.m_suffix).replace("__COMMAND_TYPE__","delete");
         
         // establish default bindings
-        this.m_iotf_api_key = this.orchestrator().preferences().valueOf("iotf_api_key",this.m_suffix).replace("__ORG_ID__",this.m_iotf_org_id).replace("__API_KEY__",this.m_iotf_org_key);
+        this.m_iotf_api_key = this.orchestrator().preferences().valueOf("iotf_api_key",this.m_suffix).replace("__ORG_ID__",this.m_iotf_org_id).replace("__ORG_KEY__",this.m_iotf_org_key);
         this.m_iotf_auth_token = this.orchestrator().preferences().valueOf("iotf_auth_token",this.m_suffix);
         
         // resync org_id and m_iotf_org_key
