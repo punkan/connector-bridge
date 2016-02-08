@@ -164,6 +164,7 @@ public class IoTFDeviceManager extends BaseClass {
         String result = this.get(this.createGatewayURL());
         return (result != null && result.contains(this.m_iotf_gw_type_id) == true);
     }
+    
     // ensure we have a gateway device type
     private Boolean hasGatewayDeviceType() {
         String result = this.get(this.createDevicesURL());
