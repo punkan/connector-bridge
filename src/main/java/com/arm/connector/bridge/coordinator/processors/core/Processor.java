@@ -49,7 +49,7 @@ public class Processor extends BaseClass {
     // jsonParser is broken with empty strings... so we have to fill them in with spaces.. 
     private String replaceEmptyStrings(String data) {
         if (data != null) return data.replace("\"\"", "\" \"");
-        return null;
+        return data;
     }
     
     // parse the JSON...

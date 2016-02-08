@@ -238,9 +238,14 @@ public class ErrorLogger extends BaseClass {
 
     // convert a stack trace to a string
     private String stackTraceToString(Exception ex) {
-        StringWriter sw = new StringWriter();
-        PrintWriter pw = new PrintWriter(sw);
-        ex.printStackTrace(pw);
-        return sw.toString();
+        if (ex != null) {
+            StringWriter sw = new StringWriter();
+            PrintWriter pw = new PrintWriter(sw);
+            ex.printStackTrace(pw);
+            return sw.toString();
+        }
+        else {
+            return "stackTraceToString: exception instance is NULL";
+        }
     }
 }
