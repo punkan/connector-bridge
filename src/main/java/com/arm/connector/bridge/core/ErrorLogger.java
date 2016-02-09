@@ -75,7 +75,7 @@ public class ErrorLogger extends BaseClass {
     /**
      *
      */
-    public static int MAX_LOG_ENTRIES = 1000;     // reset the list after retaining this many entries
+    public static int MAX_LOG_ENTRIES = 500;      // reset the list after retaining this many entries
 
     private String m_message;                                   // our message
     private Exception m_exception;                              // our exception
@@ -99,7 +99,7 @@ public class ErrorLogger extends BaseClass {
     * Configure the logging level
     */
     public void configureLoggingLevel(PreferenceManager preferences) {
-        String config = preferences.valueOf("mds_bridge_error_level");
+        String config = preferences.valueOf("mds_bridge_error_level",null);
         if (config != null && config.length() > 0) {
             int mask = 0;
             if (config.contains("info")) {
@@ -223,21 +223,21 @@ public class ErrorLogger extends BaseClass {
             if (this.m_exception != null) {
                 if (this.m_message != null) {
                     // log the message
-                    System.out.println(this.m_level + ": " + this.m_message + " Exception: " + this.m_exception + ". StackTrace: " + this.stackTraceToString(this.m_exception));
+                    System.out.println(this.prettyLevel() + this.m_message + " Exception: " + this.m_exception + ". StackTrace: " + this.stackTraceToString(this.m_exception));
                     this.buffer(this.m_message + " Exception: " + this.m_exception + ". StackTrace: " + this.stackTraceToString(this.m_exception));                   
                  }
                 else {
                     // log the exception
-                    System.out.println(this.m_level + ": " + this.m_exception);
+                    System.out.println(this.prettyLevel() + this.m_exception);
                     this.buffer("" + this.m_exception);
-                    System.out.println(this.m_level + ": " + this.stackTraceToString(this.m_exception));
+                    System.out.println(this.prettyLevel() + this.stackTraceToString(this.m_exception));
                 }
             }
             // log what we have
             else {
                 if (this.m_message != null) {
                     // log the message
-                    System.out.println(this.m_level + ": " + this.m_message);
+                    System.out.println(this.prettyLevel() + this.m_message);
                     this.buffer(this.m_message);
                 }
                 else {
@@ -245,13 +245,21 @@ public class ErrorLogger extends BaseClass {
                     this.m_message = "UNKNOWN ERROR";
                     
                     // log the message
-                    System.out.println(this.m_level + ": " + this.m_message);
+                    System.out.println(this.prettyLevel() + this.m_message);
                     this.buffer(this.m_message);
                 }
             }
         }
     }
 
+    // pretty display of logging level
+    private String prettyLevel() {
+        if (this.m_level == ErrorLogger.INFO) return "INFO: ";
+        if (this.m_level == ErrorLogger.WARNING) return "WARN: ";
+        if (this.m_level == ErrorLogger.CRITICAL) return "CRIT: ";
+        return "UNK: ";
+    }
+    
     // convert a stack trace to a string
     private String stackTraceToString(Exception ex) {
         if (ex != null) {

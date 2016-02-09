@@ -19,6 +19,7 @@ package com.arm.connector.bridge.servlet;
 import com.arm.connector.bridge.coordinator.domains.DomainChecker;
 import com.arm.connector.bridge.coordinator.domains.DomainManager;
 import com.arm.connector.bridge.core.ErrorLogger;
+import com.arm.connector.bridge.core.Utils;
 import com.arm.connector.bridge.preferences.PreferenceManager;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -33,6 +34,7 @@ import javax.servlet.http.HttpServletResponse;
  * @author Doug Anson
  */
 public final class Manager {
+    public static final Double              MANAGER_VERSION=1.0;                // our version (need to tie to build...)
     public static final Double              MDS_NON_DOMAIN_VER_BASE=2.5;        // first version of mDS without domain usage...
     private HttpServlet                     m_servlet = null;
     public static Manager                   m_manager = null;
@@ -62,6 +64,12 @@ public final class Manager {
         this.m_error_logger = error_logger;
         this.m_preference_manager = new PreferenceManager(this.m_error_logger);
         this.m_domain_managers = new HashMap<>();
+        
+        // announce our self
+        this.errorLogger().info("Connector Bridge: Date: " + Utils.dateToString(Utils.now()));
+        
+        // configure the error logger logging level
+        this.m_error_logger.configureLoggingLevel(this.m_preference_manager);
         
         // Events URI...
         this.m_mds_gw_events_path = this.m_preference_manager.valueOf("mds_gw_events_path");

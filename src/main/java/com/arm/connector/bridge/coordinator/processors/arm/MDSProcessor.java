@@ -786,7 +786,7 @@ public class MDSProcessor extends Processor implements MDSInterface {
             }
             else {
                 // empty JSON... so not parsed
-                this.errorLogger().warning("processMDSMessage(mDS): empty JSON not parsed (OK).");
+                this.errorLogger().info("processMDSMessage(mDS): empty JSON not parsed (OK).");
             }
         }
         catch (Exception ex) {

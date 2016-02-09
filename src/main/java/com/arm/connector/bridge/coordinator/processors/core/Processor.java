@@ -18,7 +18,6 @@ package com.arm.connector.bridge.coordinator.processors.core;
 
 import com.arm.connector.bridge.coordinator.Orchestrator;
 import com.arm.connector.bridge.core.BaseClass;
-import com.codesnippets4all.json.exceptions.JSONParsingException;
 import com.codesnippets4all.json.generators.JSONGenerator;
 import com.codesnippets4all.json.parsers.JSONParser;
 
@@ -27,11 +26,13 @@ import com.codesnippets4all.json.parsers.JSONParser;
  * @author Doug Anson
  */
 public class Processor extends BaseClass {
+    private static final String DEFAULT_EMPTY_STRING = "0";
     private Orchestrator     m_orchestrator = null;
     private JSONGenerator    m_json_generator = null;
     private JSONParser       m_json_parser = null;
     protected String         m_mds_domain = null;
     private String           m_def_domain = null;
+    private String           m_empty_string = Processor.DEFAULT_EMPTY_STRING;
     
     public Processor(Orchestrator orchestrator,String suffix) {
         super(orchestrator.errorLogger(),orchestrator.preferences());
@@ -39,6 +40,8 @@ public class Processor extends BaseClass {
         this.m_def_domain = orchestrator.preferences().valueOf("mds_def_domain",suffix);
         this.m_json_parser = orchestrator.getJSONParser();
         this.m_json_generator = orchestrator.getJSONGenerator();
+        this.m_empty_string = orchestrator.preferences().valueOf("mds_bridge_empty_string",suffix);
+        if (this.m_empty_string == null) this.m_empty_string = Processor.DEFAULT_EMPTY_STRING;
     }
     
     // create the authentication hash
@@ -48,20 +51,21 @@ public class Processor extends BaseClass {
    
     // jsonParser is broken with empty strings... so we have to fill them in with spaces.. 
     private String replaceEmptyStrings(String data) {
-        if (data != null) return data.replace("\"\"", "\" \"");
+        if (data != null) return data.replaceAll("\"\"", "\"" + this.m_empty_string + "\"");
         return data;
     }
     
     // parse the JSON...
     protected Object parseJson(String json) {
-        String modified_json = this.replaceEmptyStrings(json);
         Object parsed = null;
+        String modified_json = "";
         try {
+            modified_json = this.replaceEmptyStrings(json);
             if (json != null && json.contains("{") && json.contains("}"))
                 parsed = this.jsonParser().parseJson(modified_json);
         }
-        catch (JSONParsingException | NullPointerException | StringIndexOutOfBoundsException ex) {
-            this.orchestrator().errorLogger().warning("JSON parsing exception for: " + modified_json + " message: " + ex.getMessage(),ex);
+        catch (Exception ex) {
+            this.orchestrator().errorLogger().critical("JSON parsing exception for: " + modified_json + " message: " + ex.getMessage(),ex);
             parsed = null;
         }
         return parsed;
