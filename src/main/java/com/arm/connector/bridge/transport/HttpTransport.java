@@ -335,7 +335,6 @@ public class HttpTransport extends BaseClass {
      *
      * @param url_str
      * @param api_token
-     * @param password
      * @param data
      * @param content_type
      * @param auth_domain
@@ -469,8 +468,8 @@ public class HttpTransport extends BaseClass {
                 connection.setRequestProperty("Accept", "*/*");
             }
             
-            // add Connection: keep-alive
-            connection.setRequestProperty("Connection", "keep-alive");
+            // add Connection: keep-alive (does not work...)
+            //connection.setRequestProperty("Connection", "keep-alive");
 
             // special gorp for HTTP DELETE
             if (verb != null && verb.equalsIgnoreCase("delete")) {
