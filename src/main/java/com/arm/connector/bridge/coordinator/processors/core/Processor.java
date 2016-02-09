@@ -60,7 +60,7 @@ public class Processor extends BaseClass {
             if (json != null && json.contains("{") && json.contains("}"))
                 parsed = this.jsonParser().parseJson(modified_json);
         }
-        catch (JSONParsingException | NullPointerException ex) {
+        catch (JSONParsingException | NullPointerException | StringIndexOutOfBoundsException ex) {
             this.orchestrator().errorLogger().warning("JSON parsing exception for: " + modified_json + " message: " + ex.getMessage(),ex);
             parsed = null;
         }
