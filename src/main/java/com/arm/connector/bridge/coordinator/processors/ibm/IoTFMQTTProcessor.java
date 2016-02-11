@@ -22,7 +22,7 @@ import com.arm.connector.bridge.core.Utils;
 import com.arm.connector.bridge.transport.HttpTransport;
 import com.arm.connector.bridge.transport.MQTTTransport;
 import com.arm.connector.bridge.core.Transport;
-import com.codesnippets4all.json.parsers.JSONParser;
+import com.arm.connector.bridge.json.JSONParser;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;

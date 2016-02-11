@@ -23,11 +23,11 @@ import com.arm.connector.bridge.coordinator.processors.arm.MDSProcessor;
 import com.arm.connector.bridge.coordinator.processors.interfaces.PeerInterface;
 import com.arm.connector.bridge.coordinator.processors.sample.Sample3rdPartyProcessor;
 import com.arm.connector.bridge.core.ErrorLogger;
+import com.arm.connector.bridge.json.JSONGenerator;
+import com.arm.connector.bridge.json.JSONParser;
+import com.arm.connector.bridge.json.JsonGeneratorFactory;
 import com.arm.connector.bridge.preferences.PreferenceManager;
 import com.arm.connector.bridge.transport.HttpTransport;
-import com.codesnippets4all.json.generators.JSONGenerator;
-import com.codesnippets4all.json.generators.JsonGeneratorFactory;
-import com.codesnippets4all.json.parsers.JSONParser;
 import java.util.ArrayList;
 import java.util.Map;
 
@@ -72,12 +72,14 @@ public class Orchestrator implements MDSInterface, PeerInterface {
         if (domain != null && domain.equalsIgnoreCase(this.preferences().valueOf("mds_def_domain")) == false)
             this.m_mds_domain = domain;
           
-        // create the JSON Generator
+        // JSON Factory
         this.m_json_factory = JsonGeneratorFactory.getInstance();
+        
+        // create the JSON Generator
         this.m_json_generator = this.m_json_factory.newJsonGenerator();
 
         // create the JSON Parser
-        this.m_json_parser = new JSONParser();
+        this.m_json_parser = this.m_json_factory.newJsonParser();
         
         // build out the HTTP transport
         this.m_http = new HttpTransport(this.m_error_logger,this.m_preference_manager);

@@ -18,8 +18,8 @@ package com.arm.connector.bridge.coordinator.processors.core;
 
 import com.arm.connector.bridge.coordinator.Orchestrator;
 import com.arm.connector.bridge.core.BaseClass;
-import com.codesnippets4all.json.generators.JSONGenerator;
-import com.codesnippets4all.json.parsers.JSONParser;
+import com.arm.connector.bridge.json.JSONGenerator;
+import com.arm.connector.bridge.json.JSONParser;
 
 /**
  * Peer Processor base class
