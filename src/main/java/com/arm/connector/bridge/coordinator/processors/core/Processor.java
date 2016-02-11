@@ -26,7 +26,7 @@ import com.arm.connector.bridge.json.JSONParser;
  * @author Doug Anson
  */
 public class Processor extends BaseClass {
-    private static final String DEFAULT_EMPTY_STRING = "0";
+    private static final String DEFAULT_EMPTY_STRING = " ";
     private Orchestrator     m_orchestrator = null;
     private JSONGenerator    m_json_generator = null;
     private JSONParser       m_json_parser = null;
@@ -40,8 +40,12 @@ public class Processor extends BaseClass {
         this.m_def_domain = orchestrator.preferences().valueOf("mds_def_domain",suffix);
         this.m_json_parser = orchestrator.getJSONParser();
         this.m_json_generator = orchestrator.getJSONGenerator();
+        
+        // Handle the remapping of empty strings so that our JSON parsers wont complain...
         this.m_empty_string = orchestrator.preferences().valueOf("mds_bridge_empty_string",suffix);
-        if (this.m_empty_string == null) this.m_empty_string = Processor.DEFAULT_EMPTY_STRING;
+        if (this.m_empty_string == null || this.m_empty_string.length() == 0) {
+            this.m_empty_string = Processor.DEFAULT_EMPTY_STRING;
+        }
     }
     
     // create the authentication hash
