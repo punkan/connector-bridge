@@ -5,8 +5,6 @@
  */
 package com.arm.connector.bridge.json;
 
-import java.util.Map;
-
 /**
  *
  * @author Doug Anson
