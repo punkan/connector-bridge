@@ -20,6 +20,7 @@ import com.arm.connector.bridge.core.Transport;
 import com.arm.connector.bridge.core.ErrorLogger;
 import com.arm.connector.bridge.core.Utils;
 import com.arm.connector.bridge.preferences.PreferenceManager;
+import java.io.EOFException;
 import org.fusesource.mqtt.client.BlockingConnection;
 import org.fusesource.mqtt.client.MQTT;
 import org.fusesource.mqtt.client.QoS;
@@ -401,8 +402,24 @@ public class MQTTTransport extends Transport {
                 //this.errorLogger().info("MQTT: Sending message: " + message + " Topic: " + topic);
                 this.m_connection.publish(topic, message.getBytes(), qos, false);
             }
+            catch (EOFException ex) {
+                // unable to send (EOF)
+                this.errorLogger().warning("sendMessage:EOF on message send... resetting MQTT: " + message, ex);
+                
+                // disconnect
+                this.disconnect(false);
+                
+                // reconnect
+                this.reconnect();
+                
+                // resend
+                if (this.isConnected()) {
+                    this.errorLogger().info("sendMessage: retrying send() after EOF/reconnect....");
+                    this.sendMessage(topic,message,qos);
+                }
+            }
             catch (Exception ex) {
-                // unable to send
+                // unable to send (general fault)
                 this.errorLogger().critical("sendMessage: unable to send message: " + message, ex);
             }
         }
