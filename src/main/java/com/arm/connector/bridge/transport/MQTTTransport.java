@@ -48,6 +48,11 @@ public class MQTTTransport extends Transport {
     private String m_connect_client_id = null;
     private boolean m_connect_clean_session = false;
     
+    private int m_num_retries = 0;
+    private int m_max_retries = 10;
+    private Topic[] m_subscribe_topics = null;
+    private String[] m_unsubscribe_topics = null;
+    
     /**
      * Instance Factory
      * @param error_logger
@@ -74,6 +79,7 @@ public class MQTTTransport extends Transport {
         this.setUsername(this.prefValue("mqtt_username",this.m_suffix));
         this.setPassword(this.prefValue("mqtt_password",this.m_suffix));
         this.m_host_url = null;
+        this.m_max_retries = (this.preferences().intValueOf("mqtt_connect_retries",this.m_suffix));
         this.m_sleep_time = ((this.preferences().intValueOf("mqtt_receive_loop_sleep",this.m_suffix))*1000);
     }
 
@@ -355,28 +361,85 @@ public class MQTTTransport extends Transport {
             return true;
         }
     }
+    
+    // reset our MQTT connection... sometimes it goes wonky...
+    private void resetConnection() {
+        try {
+            // disconnect()...
+            ++this.m_num_retries;
+            this.disconnect(false);
+            
+            // sleep a bit
+            Thread.sleep(this.m_sleep_time);
+            
+            // reconnect()...
+            this.reconnect();
+            this.m_num_retries = 0;
+            if (this.m_subscribe_topics != null) {
+                this.subscribe(this.m_subscribe_topics);
+            }
+        }
+        catch (Exception ex) {
+            this.errorLogger().info("resetConnection: Exception: " + ex.getMessage(),ex);
+        }
+    }
+    
+    // have we exceeded our retry count?
+    private Boolean retriesExceeded() {
+        if (this.m_num_retries >= this.m_max_retries)
+            return true;
+        return false;
+    }
 
     // subscribe to specific topics 
     public void subscribe(Topic[] list) {
         try {
+            this.m_subscribe_topics = null;
             this.m_qoses = this.m_connection.subscribe(list);
+            this.m_subscribe_topics = list;
             //this.errorLogger().info("MQTTTransport: Subscribed to TOPIC(s): " + list.length);
         }
         catch (Exception ex) {
-            // unable to subscribe to topic
-            this.errorLogger().critical("MQTTTransport: unable to subscribe to topic", ex);
+            if (this.retriesExceeded()) {
+                // unable to subscribe to topic (final)
+                this.errorLogger().critical("MQTTTransport: unable to subscribe to topic (final)", ex);
+            }
+            else {
+                // unable to subscribe to topic
+                this.errorLogger().warning("MQTTTransport: unable to subscribe to topic (" + this.m_num_retries + " of " + this.m_max_retries + ")", ex);
+
+                // attempt reset
+                this.resetConnection();
+
+                // recall
+                this.subscribe(list);
+            }
         }
     }
     
     // unsubscribe from specific topics
     public void unsubscribe(String[] list) {
         try {
+            this.m_unsubscribe_topics = null;
             this.m_connection.unsubscribe(list);
+            this.m_unsubscribe_topics = list;
             //this.errorLogger().info("MQTTTransport: Unsubscribed from TOPIC(s): " + list.length);
         }
         catch (Exception ex) {
-            // unable to subscribe to topic
-            this.errorLogger().critical("MQTTTransport: unable to unsubscribe from topic", ex);
+            if (this.retriesExceeded()) {
+                // unable to unsubscribe from topic (final)
+                this.errorLogger().critical("MQTTTransport: unable to unsubscribe from topic (final)", ex);
+            }
+            else {
+                           // unable to subscribe to topic
+                this.errorLogger().warning("MQTTTransport: unable to unsubscribe to topic (" + this.m_num_retries + " of " + this.m_max_retries + ")", ex);
+
+                // attempt reset
+                this.resetConnection();
+
+                // recall
+                this.unsubscribe(list);
+            }
         }
     }
 
@@ -403,19 +466,22 @@ public class MQTTTransport extends Transport {
                 this.m_connection.publish(topic, message.getBytes(), qos, false);
             }
             catch (EOFException ex) {
-                // unable to send (EOF)
-                this.errorLogger().warning("sendMessage:EOF on message send... resetting MQTT: " + message, ex);
-                
-                // disconnect
-                this.disconnect(false);
-                
-                // reconnect
-                this.reconnect();
-                
-                // resend
-                if (this.isConnected()) {
-                    this.errorLogger().info("sendMessage: retrying send() after EOF/reconnect....");
-                    this.sendMessage(topic,message,qos);
+                if (this.retriesExceeded()) {
+                    // unable to send (EOF) - final
+                    this.errorLogger().critical("sendMessage:EOF on message send... resetting MQTT (final): " + message, ex);
+                }
+                else {
+                    // unable to send (EOF) - final
+                    this.errorLogger().warning("sendMessage:EOF on message send... resetting MQTT (" + this.m_num_retries + " of " + this.m_max_retries + "): " + message, ex);
+
+                    // reset the connection
+                    this.resetConnection();
+
+                    // resend
+                    if (this.isConnected()) {
+                        this.errorLogger().info("sendMessage: retrying send() after EOF/reconnect....");
+                        this.sendMessage(topic,message,qos);
+                    }
                 }
             }
             catch (Exception ex) {
@@ -426,20 +492,10 @@ public class MQTTTransport extends Transport {
     }
     
     // get the next MQTT message
-    private MQTTMessage getNextMessage() {
+    private MQTTMessage getNextMessage() throws Exception {
         MQTTMessage message = null;
-        try {
-            message = new MQTTMessage(this.m_connection.receive());
-            message.ack();
-        }
-        catch (InterruptedException ex) {
-            // disconnect
-            //this.errorLogger().info("disconnecting MQTT transport");
-            this.disconnect();
-        }
-        catch (Exception ex) {
-            this.errorLogger().warning("getNextMessage: exception during MQTT message get", ex);
-        }
+        message = new MQTTMessage(this.m_connection.receive());
+        message.ack();
         return message;
     }
 
@@ -449,41 +505,30 @@ public class MQTTTransport extends Transport {
      */
     public MQTTMessage receiveAndProcessMessage() {
         MQTTMessage message = null;
-        if (this.isConnected()) {
-            try {
-                message = this.getNextMessage();
-                if (this.m_listener != null && message != null) {
-                    this.m_listener.onMessageReceive(message.getTopic(),message.getMessage());
-                }
-            }
-            catch (Exception ex) {
-                // unable to receive
-                this.errorLogger().critical("receiveMessage: unable to receive message", ex);
+        try {
+            message = this.getNextMessage();
+            if (this.m_listener != null && message != null) {
+                this.m_listener.onMessageReceive(message.getTopic(),message.getMessage());
             }
         }
-        else {
-            try {
-                // disconnect but keep cached creds...
-                this.disconnect(false);
-                
-                // sleep a bit
-                Thread.sleep(this.m_sleep_time);
-                
-                // try to reconnect
-                if (this.reconnect() == true) {
-                    // call again to see if we can retrieve any messages...
-                    return this.receiveAndProcessMessage();
-                }
-                else {
-                    // unable to receive
-                    this.errorLogger().warning("receiveMessage: reconnect() FAILED... retrying...");
+        catch (Exception ex) {
+            if (this.retriesExceeded()) {
+                // unable to receiveMessage - final
+                this.errorLogger().critical("receiveMessage: unable to receive message (final)", ex);
+            }
+            else {
+                // unable to receiveMessage - final
+                this.errorLogger().critical("receiveMessage: unable to receive message (" + this.m_num_retries + " of " + this.m_max_retries + "): " + ex.getMessage(), ex);
+
+                // reset the connection
+                this.resetConnection();
+
+                // re-receive
+                if (this.isConnected()) {
+                    this.errorLogger().info("receiveMessage: retrying receive() after EOF/reconnect...");
+                    this.receiveAndProcessMessage();
                 }
             }
-            catch (InterruptedException ex) {
-                // unable to receive
-                this.errorLogger().warning("receiveMessage: unable to re-connect... Exception: " + ex.getMessage());
-            }
-            
         }
         return message;
     }
