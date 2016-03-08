@@ -130,7 +130,7 @@ public class WebhookValidator extends Thread {
     }
     
     // remove a subscription
-    public void removeSubscription(String url) {
+    public synchronized void removeSubscription(String url) {
         int index = getSubscriptionIndex(url);
         if (index >= 0) {
             this.m_subscriptions.remove(index);
@@ -223,56 +223,62 @@ public class WebhookValidator extends Thread {
     }
     
     // re-initialize the subscriptions
-    private boolean reInitializeSubscriptions() {
+    private synchronized boolean reInitializeSubscriptions() {
         int count = 0;
         boolean reinitialized = true;
-        for(int i=0;i<this.m_subscriptions.size();++i) {
-            // remove any previous subscription
-            this.m_mds.unsubscribeFromEndpointResource(this.m_subscriptions.get(i));
-            
-            // re-subscribe
-            String url = this.m_subscriptions.get(i);
-            this.m_mds.subscribeToEndpointResource(this.m_subscriptions.get(i));
-            
-            // check the HTTP result code
-            int status = this.m_mds.getLastResponseCode();
-            
-            // check for queue-mode endpoint unavailable...
-            if (status != 429) {
-                status = status - 200;
-                if (status >= 0 && status < 100) {
-                    // 20x response - OK
-                    reinitialized = true;
+        try {
+            for(int i=0;i<this.m_subscriptions.size();++i) {
+                // remove any previous subscription
+                this.m_mds.unsubscribeFromEndpointResource(this.m_subscriptions.get(i));
 
-                    // DEBUG
-                    this.errorLogger().info("reInitializeSubscriptions: re-init subscription: " + url + " RESULT: " + (status+200));
+                // re-subscribe
+                String url = this.m_subscriptions.get(i);
+                this.m_mds.subscribeToEndpointResource(this.m_subscriptions.get(i));
 
+                // check the HTTP result code
+                int status = this.m_mds.getLastResponseCode();
+
+                // check for queue-mode endpoint unavailable...
+                if (status != 429) {
+                    status = status - 200;
+                    if (status >= 0 && status < 100) {
+                        // 20x response - OK
+                        reinitialized = true;
+
+                        // DEBUG
+                        this.errorLogger().info("reInitializeSubscriptions: re-init subscription: " + url + " RESULT: " + (status+200));
+
+                    }
+                    else {
+                        // DEBUG
+                        this.errorLogger().info("reInitializeSubscriptions: re-init subscription: " + url + " RESULT: " + (status+200));
+                        reinitialized = false;
+                    }
                 }
                 else {
-                    // DEBUG
-                    this.errorLogger().info("reInitializeSubscriptions: re-init subscription: " + url + " RESULT: " + (status+200));
-                    reinitialized = false;
+                    // endpoint is in queue mode and is unavailable... retry
+                     ++count;
+                    if (count < this.m_max_retry_count) {
+                        // retrying...
+                        this.errorLogger().info("reInitializeSubscriptions: retrying... (" + this.m_subscriptions.get(i) + ") endpoint reports unavailable...");
+
+                        // backup and retry...
+                        --i;
+                        reinitialized = true;
+                    }
+                    else {
+                        // giving up on this endpoint
+                        this.errorLogger().info("reInitializeSubscriptions: giving up: " + this.m_subscriptions.get(i) + " endpoint reports unavailable...");
+
+                        // continue retrying other endpoints though...
+                        reinitialized = true;
+                    }
                 }
             }
-            else {
-                // endpoint is in queue mode and is unavailable... retry
-                 ++count;
-                if (count < this.m_max_retry_count) {
-                    // retrying...
-                    this.errorLogger().info("reInitializeSubscriptions: retrying... (" + this.m_subscriptions.get(i) + ") endpoint reports unavailable...");
-                    
-                    // backup and retry...
-                    --i;
-                    reinitialized = true;
-                }
-                else {
-                    // giving up on this endpoint
-                    this.errorLogger().info("reInitializeSubscriptions: giving up: " + this.m_subscriptions.get(i) + " endpoint reports unavailable...");
-                    
-                    // continue retrying other endpoints though...
-                    reinitialized = true;
-                }
-            }
+        }
+        catch (Exception ex) {
+            // giving up on this endpoint
+            this.errorLogger().info("reInitializeSubscriptions: caught exception: " + ex.getMessage() + " (OK)... will retry later.");
         }
         
         // return true
