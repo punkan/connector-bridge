@@ -36,7 +36,7 @@ import javax.servlet.http.HttpServletResponse;
  */
 public class DomainManager {
     private String              m_domain = null;
-    private Orchestrator    m_endpoint_manager = null;
+    private Orchestrator        m_endpoint_manager = null;
     private ErrorLogger         m_error_logger = null;
     private PreferenceManager   m_preference_manager = null;
     

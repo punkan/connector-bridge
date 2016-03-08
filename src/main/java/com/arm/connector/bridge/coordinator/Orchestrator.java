@@ -69,8 +69,9 @@ public class Orchestrator implements MDSInterface, PeerInterface {
         this.m_preference_manager = preference_manager;
                       
         // MDS domain is required 
-        if (domain != null && domain.equalsIgnoreCase(this.preferences().valueOf("mds_def_domain")) == false)
+        if (domain != null && domain.equalsIgnoreCase(this.preferences().valueOf("mds_def_domain")) == false) {
             this.m_mds_domain = domain;
+        }
           
         // JSON Factory
         this.m_json_factory = JsonGeneratorFactory.getInstance();
@@ -152,7 +153,11 @@ public class Orchestrator implements MDSInterface, PeerInterface {
     // initialize the mDS webhook
     public void initMDSWebhook() {
         if (this.m_mds_rest_processor != null) {
+            // set the webhook
             this.m_mds_rest_processor.setNotificationCallbackURL();
+            
+            // begin validation polling
+            this.beginValidationPolling();
         }
     }
     
@@ -372,5 +377,10 @@ public class Orchestrator implements MDSInterface, PeerInterface {
         for(int i=0;this.m_peer_processor_list != null && i<this.m_peer_processor_list.size();++i) {
             this.peerProcessor(i).stopListener();
         }
+    }
+
+    @Override
+    public void beginValidationPolling() {
+        this.mds_rest_processor().beginValidationPolling();
     }
 }

@@ -55,4 +55,7 @@ public interface MDSInterface {
     
     // Device Metadata extraction
     public void pullDeviceMetadata(Map endpoint);
+    
+    // Begin mDS/mDS webhook and subscription validation polling...
+    public void beginValidationPolling();
 }

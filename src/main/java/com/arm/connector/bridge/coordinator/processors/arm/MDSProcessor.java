@@ -63,6 +63,9 @@ public class MDSProcessor extends Processor implements MDSInterface {
     private String                     m_device_firmware_info_res = null;
     private String                     m_device_hardware_info_res = null;
     private String                     m_device_descriptive_location_res = null;
+    private int                        m_webhook_validator_poll_ms = -1;
+    private WebhookValidator           m_webhook_validator = null;
+    private boolean                    m_webhook_validator_enable = false;
     
     // constructor
     public MDSProcessor(Orchestrator orchestrator,HttpTransport http) {
@@ -87,6 +90,23 @@ public class MDSProcessor extends Processor implements MDSInterface {
             orchestrator.errorLogger().info("MDSProcessor: Validation Skip Override ENABLED");
         }
         
+        // initialize our webhook validator
+        this.m_webhook_validator = null;
+        this.m_webhook_validator_poll_ms = 0;
+        this.m_webhook_validator_enable = orchestrator.preferences().booleanValueOf("mds_webhook_validator_enable");
+        if (this.m_webhook_validator_enable == true) {
+            // enabling webhook/subscription validation
+            this.m_webhook_validator_poll_ms = orchestrator.preferences().intValueOf("mds_webhook_validator_poll_ms");
+            this.m_webhook_validator = new WebhookValidator(this,this.m_webhook_validator_poll_ms);
+        
+            // DEBUG
+            orchestrator.errorLogger().warning("MDSProcessor: mds/mDC webhook/subscription validator ENABLED (interval: " + this.m_webhook_validator_poll_ms + "ms)");
+        }
+        else {
+            // disabling webhook/subscription validation
+            orchestrator.errorLogger().warning("MDSProcessor: mds/mDC webhook/subscription validator DISABLED");
+        }
+        
         // initialize the default type of URI for contacting us (GW) - this will be sent to mDS for the webhook URL
         this.setupBridgeURI();
         
@@ -107,6 +127,13 @@ public class MDSProcessor extends Processor implements MDSInterface {
         
         // init the device metadata resource URI's
         this.initDeviceMetadataResourceURIs();
+    }
+    
+    // start validation polling
+    public void beginValidationPolling() {
+        if (this.m_webhook_validator != null) {
+            this.m_webhook_validator.startPolling();
+        }
     }
     
     // initialize the device metadata resource URIs
@@ -258,7 +285,7 @@ public class MDSProcessor extends Processor implements MDSInterface {
     }
     
     // get the currently configured callback URL
-    private String getNotificationCallbackURL() {
+    public String getNotificationCallbackURL() {
         String url = null;
         String headers = null;
         
@@ -433,16 +460,32 @@ public class MDSProcessor extends Processor implements MDSInterface {
             
             // check that it succeeded
             if (!this.notificationCallbackURLSet(target_url,!check_url_set)) {
+                // DEBUG
                 this.errorLogger().warning("setNotificationCallbackURL: ERROR: unable to set callback URL to: " + target_url);
+                
+                // reset the webhook - its not set anymore
+                if (this.m_webhook_validator != null) {
+                    this.m_webhook_validator.resetWebhook();
+                }
             }
             else {
                 // DEBUG
                 this.errorLogger().info("setNotificationCallbackURL: notification URL set to: " + target_url + " (SUCCESS)");
+                
+                // record the webhook
+                if (this.m_webhook_validator != null) {
+                    this.m_webhook_validator.setWebhook(target_url);
+                }
             }
         }
         else {
             // DEBUG
             this.errorLogger().info("setNotificationCallbackURL: notification URL already set to: " + target_url + " (OK)");
+        
+            // record the webhook
+            if (this.m_webhook_validator != null) {
+                this.m_webhook_validator.setWebhook(target_url);
+            }
         }
     }
     
@@ -605,6 +648,11 @@ public class MDSProcessor extends Processor implements MDSInterface {
         
         // return the discovery URL
         return url;
+    }
+    
+    // get the last response code
+    public int getLastResponseCode() {
+        return this.m_http.getLastResponseCode();
     }
     
     // invoke HTTP GET request
@@ -810,6 +858,11 @@ public class MDSProcessor extends Processor implements MDSInterface {
     }
     
     // subscribe to endpoint resources
+    public String subscribeToEndpointResource(String url) {
+        return this.subscribeToEndpointResource(url,false);
+    }
+    
+    // subscribe to endpoint resources
     private String subscribeToEndpointResource(String url,Boolean init_webhook) {
         if (init_webhook) {
             this.errorLogger().info("subscribeToEndpointResource: (re)setting the event notification URL...");
@@ -824,7 +877,38 @@ public class MDSProcessor extends Processor implements MDSInterface {
         else { 
             json = this.httpPut(url); 
         }
+        
+        // save off the subscription
+        if (this.m_webhook_validator != null) {
+            this.m_webhook_validator.addSubscription(url);
+        }
+        
+        // return the result
         return json;
+    }
+    
+    // get to endpoint resource subscription 
+    public boolean getEndpointResourceSubscriptionStatus(String url) {
+        boolean subscribed = false;
+        String json = null;
+        this.errorLogger().info("getEndpointResourceSubscriptionStatus: getting subscription status: " + url);
+        if (this.mdsRequiresSSL()) {
+            json = this.httpsGet(url);
+        }
+        else { 
+            json = this.httpGet(url); 
+        }
+        
+        // check the status...
+        int status = this.getLastResponseCode();
+        status = status - 200;
+        if (status >= 0 && status < 100) {
+            // 20x response - OK
+            subscribed = true;
+        }
+        
+        // return the result
+        return subscribed;
     }
     
     // process endpoint resource operation request
@@ -905,6 +989,13 @@ public class MDSProcessor extends Processor implements MDSInterface {
         else { 
             json = this.httpDelete(url);   
         }
+        
+        // remove subscription
+        if (this.m_webhook_validator != null) {
+            this.m_webhook_validator.removeSubscription(url);
+        }
+        
+        // return the JSON result
         return json;
     }
     
