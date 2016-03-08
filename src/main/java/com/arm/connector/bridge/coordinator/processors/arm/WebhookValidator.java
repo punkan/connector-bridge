@@ -252,23 +252,7 @@ public class WebhookValidator extends Thread {
                 int status = this.m_mds.getLastResponseCode();
 
                 // check for queue-mode endpoint unavailable...
-                if (status != 429) {
-                    status = status - 200;
-                    if (status >= 0 && status < 100) {
-                        // 20x response - OK
-                        reinitialized = true;
-
-                        // DEBUG
-                        this.errorLogger().info("reInitializeSubscriptions: re-init subscription: " + url + " RESULT: " + (status+200));
-
-                    }
-                    else {
-                        // DEBUG
-                        this.errorLogger().info("reInitializeSubscriptions: re-init subscription: " + url + " RESULT: " + (status+200));
-                        reinitialized = false;
-                    }
-                }
-                else {
+                if (status == 429) {
                     // endpoint is in queue mode and is unavailable... retry
                      ++count;
                     if (count < this.m_max_retry_count) {
@@ -285,6 +269,28 @@ public class WebhookValidator extends Thread {
 
                         // continue retrying other endpoints though...
                         reinitialized = true;
+                    }
+                }
+                else if (status == 404) {
+                    // endpoint is gone... just remove this resource
+                    this.errorLogger().info("reInitializeSubscriptions: endpoint gone... removing: " + this.m_subscriptions.get(i)); 
+                    this.m_subscriptions.remove(i);
+                }   
+                else {
+                    // general case...
+                    status = status - 200;
+                    if (status >= 0 && status < 100) {
+                        // 20x response - OK
+                        reinitialized = true;
+
+                        // DEBUG
+                        this.errorLogger().info("reInitializeSubscriptions: re-init subscription: " + url + " RESULT: " + (status+200));
+
+                    }
+                    else {
+                        // DEBUG
+                        this.errorLogger().info("reInitializeSubscriptions: re-init subscription: " + url + " RESULT: " + (status+200));
+                        reinitialized = false;
                     }
                 }
             }
