@@ -129,6 +129,19 @@ public class WebhookValidator extends Thread {
         }
     }
     
+    // remove all subscriptions for a given endpoint
+    public synchronized void removeSubscriptionsforEndpoint(String endpoint) {
+        if (endpoint != null && endpoint.length() > 0) {
+            String key = "/" + endpoint + "/";
+            for(int i=0;i<this.m_subscriptions.size();++i) {
+                if (this.m_subscriptions.get(i).contains(key) == true) {
+                    // delete this resource
+                    this.m_subscriptions.remove(i);
+                }
+            }
+        }
+    }
+    
     // remove a subscription
     public synchronized void removeSubscription(String url) {
         int index = getSubscriptionIndex(url);
