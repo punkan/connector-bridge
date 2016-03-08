@@ -135,6 +135,9 @@ public class WebhookValidator extends Thread {
         if (index >= 0) {
             this.m_subscriptions.remove(index);
         }
+        else {
+            this.errorLogger().warning("removeSubscription: NOT FOUND: " + url);
+        }
     }
     
     // already subscribed?

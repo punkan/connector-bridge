@@ -994,11 +994,6 @@ public class MDSProcessor extends Processor implements MDSInterface {
         
         // remove the subscription
         String json = this.unsubscribeFromEndpointResource(url);
-       
-        // remove subscription
-        if (this.m_webhook_validator != null) {
-            this.m_webhook_validator.removeSubscription(url);
-        }
         
         // return the JSON result
         return json;
@@ -1019,6 +1014,11 @@ public class MDSProcessor extends Processor implements MDSInterface {
         else {
             // delete the callback URL
             json = this.httpDelete(url);
+        }
+        
+        // remove subscription
+        if (this.m_webhook_validator != null) {
+            this.m_webhook_validator.removeSubscription(url);
         }
         
         // return any resultant json
