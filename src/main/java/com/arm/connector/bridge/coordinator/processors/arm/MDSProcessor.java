@@ -496,7 +496,12 @@ public class MDSProcessor extends Processor implements MDSInterface {
         if (resource != null) uri = (String)resource.get("path");
         String url = this.createEndpointResourceSubscriptionURL(uri);
         this.errorLogger().info("unregisterNotificationResource: sending endpoint resource subscription removal request: " + url);
-        this.httpDelete(url);                      
+        this.httpDelete(url);
+        
+        // remove from the validator too
+        if (this.m_webhook_validator != null) {
+            this.m_webhook_validator.removeSubscription(url);
+        }
     }
     
     // de-register endpoints
@@ -506,7 +511,12 @@ public class MDSProcessor extends Processor implements MDSInterface {
             // create the endpoint subscription URL...
             String url = this.createBaseURL() + this.getDomain() + "/endpoints/" + endpoints[i];
             this.errorLogger().info("unregisterEndpoint: sending endpoint subscription removal request: " + url);
-            this.httpDelete(url);   
+            this.httpDelete(url); 
+            
+            // remove from the validator too
+            if (this.m_webhook_validator != null) {
+                this.m_webhook_validator.removeSubscription(url);
+            }
         }
     }
     
