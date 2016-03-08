@@ -981,21 +981,37 @@ public class MDSProcessor extends Processor implements MDSInterface {
     @Override
     public String unsubscribeFromEndpointResource(String uri,Map options) {
         String url = this.createEndpointResourceSubscriptionURL(uri,options);
-        String json = null;
-        this.errorLogger().info("unsubscribeFromEndpointResource: sending subscription delete request: " + url);
-        if (this.mdsRequiresSSL()) {
-            json = this.httpsDelete(url);
-        }
-        else { 
-            json = this.httpDelete(url);   
-        }
         
+        // remove the subscription
+        String json = this.unsubscribeFromEndpointResource(url);
+       
         // remove subscription
         if (this.m_webhook_validator != null) {
             this.m_webhook_validator.removeSubscription(url);
         }
         
         // return the JSON result
+        return json;
+    }
+    
+    // remove the mDS Connector Notification Callback
+    public String unsubscribeFromEndpointResource(String url) {
+        String json = null;
+        
+        // DEBUG
+        this.errorLogger().info("unsubscribeFromEndpointResource: unsubscribing: " + url);
+        
+        // SSL vs. HTTP
+        if (this.m_use_https_dispatch == true) {
+            // delete the callback URL (SSL)
+            json = this.httpsDelete(url);
+        }
+        else {
+            // delete the callback URL
+            json = this.httpDelete(url);
+        }
+        
+        // return any resultant json
         return json;
     }
     

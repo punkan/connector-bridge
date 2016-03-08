@@ -26,19 +26,19 @@ import java.util.ArrayList;
 public class WebhookValidator extends Thread {
     private MDSProcessor        m_mds = null;
     private int                 m_poll_interval_ms = 0;
-    private boolean             m_webhook_set = false;
     private String              m_webhook_url = null;
     private ArrayList<String>   m_subscriptions = null;
     private boolean             m_running = false;
+    private int                 m_max_retry_count = 0;
     
     // default constructor
     public WebhookValidator(MDSProcessor mds,int poll_interval_ms) {
         this.m_mds = mds;
         this.m_poll_interval_ms = poll_interval_ms;
         this.m_webhook_url = null;
-        this.m_webhook_set = false;
         this.m_subscriptions = new ArrayList<>();
         this.m_running = false;
+        this.m_max_retry_count = mds.preferences().intValueOf("mds_webhook_retry_max_tries");
     }
     
     // get our error logger
@@ -112,21 +112,13 @@ public class WebhookValidator extends Thread {
     
     // unset the webhook
     public void resetWebhook() {
-        this.m_webhook_set = false;
         this.m_webhook_url = null;
-        this.m_subscriptions.clear();
-    }
-    
-    // is the webhook set?
-    public boolean webhookIsSet() {
-        return this.m_webhook_set;
     }
     
     // set the webhook
     public void setWebhook(String webhook_url) {
         if (webhook_url != null && webhook_url.length() > 0) {
             this.m_webhook_url = webhook_url;
-            this.m_webhook_set = true;
         }
     }
     
@@ -204,11 +196,12 @@ public class WebhookValidator extends Thread {
         
         // direct MDSProcessor to re-establish the webhook
         this.m_mds.resetNotificationCallbackURL();
+        this.m_mds.setNotificationCallbackURL();
         
         // check the HTTP result code
         int status = this.m_mds.getLastResponseCode();
         status = status - 200;
-        if (status >= 0 && status < 100) {
+        if (status >= 0 && (status < 100 || status < 300)) {
             // 20x response - OK
             reinitialized = true;
 
@@ -228,27 +221,54 @@ public class WebhookValidator extends Thread {
     
     // re-initialize the subscriptions
     private boolean reInitializeSubscriptions() {
+        int count = 0;
         boolean reinitialized = true;
         for(int i=0;i<this.m_subscriptions.size();++i) {
-            // subscribe
+            // remove any previous subscription
+            this.m_mds.unsubscribeFromEndpointResource(this.m_subscriptions.get(i));
+            
+            // re-subscribe
             String url = this.m_subscriptions.get(i);
             this.m_mds.subscribeToEndpointResource(this.m_subscriptions.get(i));
             
             // check the HTTP result code
             int status = this.m_mds.getLastResponseCode();
-            status = status - 200;
-            if (status >= 0 && status < 100) {
-                // 20x response - OK
-                reinitialized = true;
-                
-                // DEBUG
-                this.errorLogger().info("reInitializeSubscriptions: re-init subscription: " + url + " RESULT: " + (status+200));
+            
+            // check for queue-mode endpoint unavailable...
+            if (status != 429) {
+                status = status - 200;
+                if (status >= 0 && status < 100) {
+                    // 20x response - OK
+                    reinitialized = true;
 
+                    // DEBUG
+                    this.errorLogger().info("reInitializeSubscriptions: re-init subscription: " + url + " RESULT: " + (status+200));
+
+                }
+                else {
+                    // DEBUG
+                    this.errorLogger().info("reInitializeSubscriptions: re-init subscription: " + url + " RESULT: " + (status+200));
+                    reinitialized = false;
+                }
             }
             else {
-                // DEBUG
-                this.errorLogger().info("reInitializeSubscriptions: re-init subscription: " + url + " RESULT: " + (status+200));
-                reinitialized = false;
+                // endpoint is in queue mode and is unavailable... retry
+                 ++count;
+                if (count < this.m_max_retry_count) {
+                    // retrying...
+                    this.errorLogger().info("reInitializeSubscriptions: retrying... (" + this.m_subscriptions.get(i) + ") endpoint reports unavailable...");
+                    
+                    // backup and retry...
+                    --i;
+                    reinitialized = true;
+                }
+                else {
+                    // giving up on this endpoint
+                    this.errorLogger().info("reInitializeSubscriptions: giving up: " + this.m_subscriptions.get(i) + " endpoint reports unavailable...");
+                    
+                    // continue retrying other endpoints though...
+                    reinitialized = true;
+                }
             }
         }
         
