@@ -131,6 +131,23 @@ public class IoTFMQTTProcessor extends GenericMQTTProcessor implements Transport
         this.m_mqtt_ip_address = this.m_iotf_device_manager.updateHostnameBinding(this.m_mqtt_ip_address);
         this.m_iotf_device_type = this.m_iotf_device_manager.updateDeviceType(this.m_iotf_device_type);
         
+        // RESET in case we want to just connect as an IoTF Application
+        if (this.orchestrator().preferences().booleanValueOf("iotf_force_app_binding",this.m_suffix) == true) {
+            // DEBUG
+            this.errorLogger().warning("IoTF Processor: FORCED binding as IoTF Application - ENABLED");
+            
+            // override - simply bind as a IoTF applciation
+            this.m_iotf_api_key = this.orchestrator().preferences().valueOf("iotf_api_key",this.m_suffix).replace("__ORG_ID__",this.m_iotf_org_id).replace("__ORG_KEY__",this.m_iotf_org_key);
+            this.m_iotf_auth_token = this.orchestrator().preferences().valueOf("iotf_auth_token",this.m_suffix);
+            
+            // resync org_id and m_iotf_org_key
+            this.parseIoTFUsername();
+
+            // create the client ID
+            this.m_client_id_template = this.orchestrator().preferences().valueOf("iotf_client_id_template",this.m_suffix).replace("__ORG_ID__",this.m_iotf_org_id);
+            this.m_client_id = this.createIoTFClientID(this.m_mds_domain);
+        }
+        
         // create the transport
         mqtt.setUsername(this.m_iotf_api_key);
         mqtt.setPassword(this.m_iotf_auth_token);
@@ -325,11 +342,25 @@ public class IoTFMQTTProcessor extends GenericMQTTProcessor implements Transport
             // pre-populate the new endpoint with initial values for registration
             this.orchestrator().pullDeviceMetadata(endpoint);
             
-            // create the device in IoTF
-            this.registerNewDevice(endpoint);
+            try {
+                // create the device in IoTF
+                this.errorLogger().info("processRegistration: calling registerNewDevice(): " + endpoint);
+                this.registerNewDevice(endpoint);
+                this.errorLogger().info("processRegistration: registerNewDevice() completed");
+            }
+            catch (Exception ex) {
+                this.errorLogger().warning("processRegistration: caught exception in registerNewDevice(): " + endpoint,ex); 
+            }
             
-            // subscribe for IoTF as well..
-            this.subscribe((String)endpoint.get("ep"));
+            try {
+                // subscribe for IoTF as well..
+                this.errorLogger().info("processRegistration: calling subscribe(): " + endpoint);
+                this.subscribe((String)endpoint.get("ep"));
+                this.errorLogger().info("processRegistration: subscribe() completed");
+            }
+            catch (Exception ex) {
+                this.errorLogger().warning("processRegistration: caught exception in registerNewDevice(): " + endpoint,ex); 
+            }
         }
     }
     
@@ -376,7 +407,7 @@ public class IoTFMQTTProcessor extends GenericMQTTProcessor implements Transport
     
     private String customizeTopic(String topic,String ep_name) {
         String cust_topic = topic.replace("__EPNAME__", ep_name).replace("__DEVICE_TYPE__", this.m_iotf_device_type);
-        //this.errorLogger().info("IoTF Customized Topic: " + cust_topic); 
+        this.errorLogger().info("IoTF Customized Topic: " + cust_topic); 
         return cust_topic;
     }
     
@@ -413,17 +444,31 @@ public class IoTFMQTTProcessor extends GenericMQTTProcessor implements Transport
         return false;
     }
     
+    // subscribe to the IoTF MQTT topics
+    private void subscribe_to_topics(Topic topics[]) {
+        // (4/7/16): OFF
+        // this.mqtt().subscribe(topics);
+        
+        // (4/7/16): subscribe to each topic individually
+        for(int i=0;i<topics.length;++i) {
+            Topic[] single_topic = new Topic[1];
+            single_topic[0] = topics[i];
+            this.mqtt().subscribe(single_topic);
+        }
+    }
+    
     // register topics for CoAP commands
     @SuppressWarnings("empty-statement")
     public void subscribe(String ep_name) {
         if (ep_name != null) {
-            //this.orchestrator().errorLogger().info("IoTF: Subscribing to CoAP command topics for endpoint: " + ep_name);
+            // DEBUG
+            this.orchestrator().errorLogger().info("IoTF: Subscribing to CoAP command topics for endpoint: " + ep_name);
             try {
                 HashMap<String,Object> topic_data = this.createEndpointTopicData(ep_name);
                 if (topic_data != null) {
                     // get,put,post,delete enablement
                     this.m_iotf_endpoints.put(ep_name, topic_data);
-                    this.mqtt().subscribe((Topic[])topic_data.get("topic_list"));
+                    this.subscribe_to_topics((Topic[])topic_data.get("topic_list"));
                 }
                 else {
                     this.orchestrator().errorLogger().warning("IoTF: GET/PUT/POST/DELETE topic data NULL. GET/PUT/POST/DELETE disabled");
@@ -442,7 +487,8 @@ public class IoTFMQTTProcessor extends GenericMQTTProcessor implements Transport
     public boolean unsubscribe(String ep_name) {
         boolean do_register = false;
         if (ep_name != null) {
-            //this.orchestrator().errorLogger().info("IoTF: Un-Subscribing to CoAP command topics for endpoint: " + ep_name);
+            // DEBUG
+            this.orchestrator().errorLogger().info("IoTF: Un-Subscribing to CoAP command topics for endpoint: " + ep_name);
             try {
                 HashMap<String,Object> topic_data = (HashMap<String,Object>)this.m_iotf_endpoints.get(ep_name);
                 if (topic_data != null) {

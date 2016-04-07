@@ -215,6 +215,10 @@ public class MQTTTransport extends Transport {
                 // configure credentials and options...
                 String username = this.getUsername();
                 String pw = this.getPassword();
+                
+                // DEBUG
+                this.errorLogger().info("MQTTTransport: Username: [" + username + "] pw: [" + pw + "]");
+                
                 if (username != null && username.length() > 0 && username.equalsIgnoreCase("off") == false) {
                     endpoint.setUserName(username);
                 }
@@ -351,9 +355,12 @@ public class MQTTTransport extends Transport {
      */
     @Override
     public boolean receiveAndProcess() {
+        // DEBUG
+        this.errorLogger().info("MQTTTransport: in receiveAndProcess()...");
         if (this.isConnected()) {
             try {
                 // receive the MQTT message and process it...
+                this.errorLogger().info("MQTTTransport: in receiveAndProcess(). Calling receiveAndProcessMessage()...");
                 this.receiveAndProcessMessage();
             }
             catch (Exception ex) {
@@ -513,9 +520,21 @@ public class MQTTTransport extends Transport {
     public MQTTMessage receiveAndProcessMessage() {
         MQTTMessage message = null;
         try {
+            // DEBUG
+            this.errorLogger().info("receiveMessage: getting next MQTT message...");
             message = this.getNextMessage();
             if (this.m_listener != null && message != null) {
+                // call the registered listener to process the received message
+                this.errorLogger().info("receiveMessage: processing message: " + message);
                 this.m_listener.onMessageReceive(message.getTopic(),message.getMessage());
+            }
+            else if (this.m_listener != null) {
+                // no listener
+                this.errorLogger().critical("receiveMessage: Not processing message: " + message + ". Listener is NULL");
+            }
+            else {
+                // no message
+                this.errorLogger().critical("receiveMessage: Not processing NULL message");
             }
         }
         catch (Exception ex) {

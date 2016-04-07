@@ -447,7 +447,7 @@ public class IoTFDeviceManager extends BaseClass {
         String payload = this.createAddDeviceJSON(message);
         
         // DEBUG
-        //this.errorLogger().info("registerNewDevice: URL: " + url + " DATA: " + payload + " USER: " + this.m_iotf_api_key + " PW: " + this.m_iotf_auth_token);
+        this.errorLogger().info("registerNewDevice: URL: " + url + " DATA: " + payload + " USER: " + this.m_iotf_api_key + " PW: " + this.m_iotf_auth_token);
         
         // dispatch and look for the result
         String result = this.gwpost(url, payload);
@@ -468,7 +468,7 @@ public class IoTFDeviceManager extends BaseClass {
         url += "/devices/" + device;
         
         // DEBUG
-        //this.errorLogger().info("deregisterDevice: URL: " + url + " USER: " + this.m_iotf_api_key + " PW: " + this.m_iotf_auth_token);
+        this.errorLogger().info("deregisterDevice: URL: " + url + " USER: " + this.m_iotf_api_key + " PW: " + this.m_iotf_auth_token);
         
         // dispatch and look for the result
         String result = this.gwdelete(url);
