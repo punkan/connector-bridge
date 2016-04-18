@@ -52,7 +52,6 @@ public class IoTFMQTTProcessor extends GenericMQTTProcessor implements Transport
     private HashMap<String,Object>  m_iotf_endpoints = null;
     private String                  m_iotf_org_id = null;
     private String                  m_iotf_org_key = null;
-    private String                  m_iotf_device_type = null;
     private String                  m_client_id_template = null;
     private String                  m_iotf_device_data_key = null;
     private Boolean                 m_use_clean_session = false;
@@ -85,7 +84,6 @@ public class IoTFMQTTProcessor extends GenericMQTTProcessor implements Transport
         // get our defaults
         this.m_iotf_org_id = this.orchestrator().preferences().valueOf("iotf_org_id",this.m_suffix);
         this.m_iotf_org_key = this.orchestrator().preferences().valueOf("iotf_org_key",this.m_suffix);
-        this.m_iotf_device_type = this.orchestrator().preferences().valueOf("iotf_device_type",this.m_suffix);
         this.m_mqtt_ip_address = this.orchestrator().preferences().valueOf("iotf_mqtt_ip_address",this.m_suffix);
         this.m_mqtt_port = this.orchestrator().preferences().intValueOf("iotf_mqtt_port",this.m_suffix);
         
@@ -129,7 +127,6 @@ public class IoTFMQTTProcessor extends GenericMQTTProcessor implements Transport
         this.m_iotf_auth_token = this.m_iotf_device_manager.updatePasswordBinding(this.m_iotf_auth_token);
         this.m_client_id = this.m_iotf_device_manager.updateClientIDBinding(this.m_client_id);
         this.m_mqtt_ip_address = this.m_iotf_device_manager.updateHostnameBinding(this.m_mqtt_ip_address);
-        this.m_iotf_device_type = this.m_iotf_device_manager.updateDeviceType(this.m_iotf_device_type);
         
         // RESET in case we want to just connect as an IoTF Application
         if (this.orchestrator().preferences().booleanValueOf("iotf_force_app_binding",this.m_suffix) == true) {
@@ -250,6 +247,9 @@ public class IoTFMQTTProcessor extends GenericMQTTProcessor implements Transport
             // strip off []...
             String coap_json_stripped = this.stripArrayChars(coap_raw_json);
             
+            // get our endpoint name
+            String ep_name = (String)notification.get("ep");
+            
             // encapsulate into a coap/device packet...
             String iotf_coap_json = coap_json_stripped;
             if (this.m_iotf_device_data_key != null && this.m_iotf_device_data_key.length() > 0) {
@@ -258,9 +258,10 @@ public class IoTFMQTTProcessor extends GenericMQTTProcessor implements Transport
                                     
             // DEBUG
             this.errorLogger().info("IoTF: CoAP notification: " + iotf_coap_json);
+            //this.errorLogger().info("IoTF: CoAP notification (JSON): " + notification);
             
             // send to IoTF...
-            this.mqtt().sendMessage(this.customizeTopic(this.m_iotf_observe_notification_topic,(String)notification.get("ep")),iotf_coap_json,QoS.AT_MOST_ONCE);           
+            this.mqtt().sendMessage(this.customizeTopic(this.m_iotf_observe_notification_topic,ep_name,this.m_iotf_device_manager.getDeviceType(ep_name)),iotf_coap_json,QoS.AT_MOST_ONCE);           
          }
     }
     
@@ -275,7 +276,7 @@ public class IoTFMQTTProcessor extends GenericMQTTProcessor implements Transport
             if (do_register == true) 
                 this.processRegistration(data,"reg-updates");
             else 
-                this.subscribe((String)entry.get("ep"));
+                this.subscribe((String)entry.get("ep"),(String)entry.get("ept"));
         }
     }
     
@@ -355,7 +356,7 @@ public class IoTFMQTTProcessor extends GenericMQTTProcessor implements Transport
             try {
                 // subscribe for IoTF as well..
                 this.errorLogger().info("processRegistration: calling subscribe(): " + endpoint);
-                this.subscribe((String)endpoint.get("ep"));
+                this.subscribe((String)endpoint.get("ep"),(String)endpoint.get("ept"));
                 this.errorLogger().info("processRegistration: subscribe() completed");
             }
             catch (Exception ex) {
@@ -386,15 +387,15 @@ public class IoTFMQTTProcessor extends GenericMQTTProcessor implements Transport
     }
     
     // create the endpoint IoTF topic data
-    private HashMap<String,Object> createEndpointTopicData(String ep_name) {
+    private HashMap<String,Object> createEndpointTopicData(String ep_name,String ep_type) {
         HashMap<String,Object> topic_data = null;
         if (this.m_iotf_coap_cmd_topic_get != null) {
             Topic[] list = new Topic[NUM_COAP_VERBS];
             String[] topic_string_list = new String[NUM_COAP_VERBS];
-            topic_string_list[0] = this.customizeTopic(this.m_iotf_coap_cmd_topic_get,ep_name);
-            topic_string_list[1] = this.customizeTopic(this.m_iotf_coap_cmd_topic_put,ep_name);
-            topic_string_list[2] = this.customizeTopic(this.m_iotf_coap_cmd_topic_post,ep_name);
-            topic_string_list[3] = this.customizeTopic(this.m_iotf_coap_cmd_topic_delete,ep_name);
+            topic_string_list[0] = this.customizeTopic(this.m_iotf_coap_cmd_topic_get,ep_name,ep_type);
+            topic_string_list[1] = this.customizeTopic(this.m_iotf_coap_cmd_topic_put,ep_name,ep_type);
+            topic_string_list[2] = this.customizeTopic(this.m_iotf_coap_cmd_topic_post,ep_name,ep_type);
+            topic_string_list[3] = this.customizeTopic(this.m_iotf_coap_cmd_topic_delete,ep_name,ep_type);
             for(int i=0;i<NUM_COAP_VERBS;++i) {
                 list[i] = new Topic(topic_string_list[i],QoS.AT_LEAST_ONCE);
             }
@@ -405,8 +406,8 @@ public class IoTFMQTTProcessor extends GenericMQTTProcessor implements Transport
         return topic_data;
     }
     
-    private String customizeTopic(String topic,String ep_name) {
-        String cust_topic = topic.replace("__EPNAME__", ep_name).replace("__DEVICE_TYPE__", this.m_iotf_device_type);
+    private String customizeTopic(String topic,String ep_name,String ep_type) {
+        String cust_topic = topic.replace("__EPNAME__", ep_name).replace("__DEVICE_TYPE__", ep_type);
         this.errorLogger().info("IoTF Customized Topic: " + cust_topic); 
         return cust_topic;
     }
@@ -459,12 +460,12 @@ public class IoTFMQTTProcessor extends GenericMQTTProcessor implements Transport
     
     // register topics for CoAP commands
     @SuppressWarnings("empty-statement")
-    public void subscribe(String ep_name) {
+    public void subscribe(String ep_name,String ep_type) {
         if (ep_name != null) {
             // DEBUG
             this.orchestrator().errorLogger().info("IoTF: Subscribing to CoAP command topics for endpoint: " + ep_name);
             try {
-                HashMap<String,Object> topic_data = this.createEndpointTopicData(ep_name);
+                HashMap<String,Object> topic_data = this.createEndpointTopicData(ep_name,ep_type);
                 if (topic_data != null) {
                     // get,put,post,delete enablement
                     this.m_iotf_endpoints.put(ep_name, topic_data);
@@ -604,7 +605,7 @@ public class IoTFMQTTProcessor extends GenericMQTTProcessor implements Transport
                 this.errorLogger().info("IoTF(CoAP Command): Sending Observation(GET): " + observation);
                 
                 // send the observation (GET reply)...
-                this.mqtt().sendMessage(this.customizeTopic(this.m_iotf_observe_notification_topic,ep_name),observation,QoS.AT_MOST_ONCE); 
+                this.mqtt().sendMessage(this.customizeTopic(this.m_iotf_observe_notification_topic,ep_name,this.m_iotf_device_manager.getDeviceType(ep_name)),observation,QoS.AT_MOST_ONCE); 
             }
         }
     }

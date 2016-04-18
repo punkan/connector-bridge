@@ -47,7 +47,6 @@ public class IoTFDeviceManager extends BaseClass {
     
     private String m_iotf_gw_id = null;
     private String m_iotf_gw_type_id = null;
-    private String m_iotf_gw_dev_type_id = null;
     private String m_iotf_gw_auth_token = null;
     
     private String m_iotf_org_id = null;
@@ -62,6 +61,8 @@ public class IoTFDeviceManager extends BaseClass {
        
     private String m_suffix = null;
     
+    private HashMap<String,String> m_device_types = null;
+    
      // constructor
     public IoTFDeviceManager(ErrorLogger logger,PreferenceManager preferences,HttpTransport http) {
         this(logger,preferences,null,http);
@@ -75,10 +76,12 @@ public class IoTFDeviceManager extends BaseClass {
         this.m_http = http;
         this.m_suffix = suffix;
         
+        // create the device type map
+        this.m_device_types = new HashMap<String,String>();
+        
         // pull the needed configuration/preferences
         this.m_iotf_gw_id = this.preferences().valueOf("iotf_gw_id",this.m_suffix) + Utils.getExternalIPAddress().replace(".","");
         this.m_iotf_gw_type_id = this.preferences().valueOf("iotf_gw_type_id",this.m_suffix);
-        this.m_iotf_gw_dev_type_id = this.preferences().valueOf("iotf_gw_dev_type_id",this.m_suffix);
         
         this.m_iotf_org_id = this.preferences().valueOf("iotf_org_id",this.m_suffix);
         this.m_iotf_org_key = this.preferences().valueOf("iotf_org_key",this.m_suffix);
@@ -112,7 +115,6 @@ public class IoTFDeviceManager extends BaseClass {
     private void initIoTFMetadata() {
         // ensure we are initialized properly
         this.createGatewayType();
-        this.createGatewayDeviceType();
         this.createGatewayDevice();
                 
         // initialize the Gateway client ID
@@ -140,11 +142,6 @@ public class IoTFDeviceManager extends BaseClass {
         return this.preferences().valueOf("iotf_rest_hostname_template",this.m_suffix).replace("__ORG_ID__",this.m_iotf_org_id + ".messaging");
     }
     
-    // update the IoTF MQTT Hostname bindings to use
-    public String updateDeviceType(String def) {
-        return this.m_iotf_gw_dev_type_id; 
-    }
-    
     // check and build out the gateway type
     private void createGatewayType() {
         if (!this.hasGatewayType()) {
@@ -153,9 +150,9 @@ public class IoTFDeviceManager extends BaseClass {
     }
     
     // check and build out the gateway device type
-    private void createGatewayDeviceType() {
-        if (!this.hasGatewayDeviceType()) {
-            this.installGatewayDeviceType();
+    private void createGatewayDeviceType(String device_type) {
+        if (!this.hasGatewayDeviceType(device_type)) {
+            this.installGatewayDeviceType(device_type);
         }
     }
     
@@ -172,10 +169,15 @@ public class IoTFDeviceManager extends BaseClass {
         return (result != null && result.contains(this.m_iotf_gw_type_id) == true);
     }
     
+    // get the associated device type from the device name
+    public String getDeviceType(String device) {
+        return this.m_device_types.get(device);
+    }
+    
     // ensure we have a gateway device type
-    private Boolean hasGatewayDeviceType() {
-        String result = this.get(this.createDevicesURL());
-        return (result != null && result.contains(this.m_iotf_gw_dev_type_id) == true);
+    private Boolean hasGatewayDeviceType(String device_type) {
+        String result = this.get(this.createDevicesURL(device_type));
+        return (result != null && device_type != null && device_type.length() > 0 && result.contains(device_type) == true);
     }
     
     // ensure we have a gateway device
@@ -206,12 +208,12 @@ public class IoTFDeviceManager extends BaseClass {
     }
     
     // install the Gateway Device Type 
-    private Boolean installGatewayDeviceType() {
+    private Boolean installGatewayDeviceType(String device_type) {
         // create the URL
         String url = "https://" + this.m_iotf_rest_hostname + this.m_iotf_rest_uri_template;
         
         // build out the POST payload
-        String payload = this.createAddGatewayDeviceTypeJSON();
+        String payload = this.createAddGatewayDeviceTypeJSON(device_type);
         
         // DEBUG
         //this.errorLogger().info("installGatewayDeviceType: URL: " + url + " DATA: " + payload + " USER: " + this.m_iotf_api_key + " PW: " + this.m_iotf_auth_token);
@@ -251,8 +253,8 @@ public class IoTFDeviceManager extends BaseClass {
     }
     
     // build the REST URI for device management
-    private String buildDevicesURI() {
-        return this.m_iotf_rest_uri_template + "/" + this.m_iotf_gw_dev_type_id;
+    private String buildDevicesURI(String device_type) {
+        return this.m_iotf_rest_uri_template + "/" + device_type;
     }
     
     // build the REST URI for device gateway management
@@ -261,8 +263,8 @@ public class IoTFDeviceManager extends BaseClass {
     }
     
     // build out the REST URL for device management
-    private String createDevicesURL() {
-        return "https://" + this.m_iotf_rest_hostname + this.buildDevicesURI(); 
+    private String createDevicesURL(String device_type) {
+        return "https://" + this.m_iotf_rest_hostname + this.buildDevicesURI(device_type); 
     }
     
     // build out the REST URL for device gateway management
@@ -405,8 +407,8 @@ public class IoTFDeviceManager extends BaseClass {
     }
     
     // build out the ADD Gateway Device Type JSON
-    private String createAddGatewayDeviceTypeJSON() {
-        return this.m_iotf_add_gw_dev_type_template.replace("__TYPE_ID__",this.m_iotf_gw_dev_type_id);
+    private String createAddGatewayDeviceTypeJSON(String device_type) {
+        return this.m_iotf_add_gw_dev_type_template.replace("__TYPE_ID__",device_type);
     }
     
     // build out the ADD Gateway Device JSON
@@ -437,8 +439,13 @@ public class IoTFDeviceManager extends BaseClass {
     
     // process new device registration
     public Boolean registerNewDevice(Map message) {
+        // create the new device type
+        String device_type = (String)message.get("ept");
+        String device = (String)message.get("ep");
+        this.createGatewayDeviceType(device_type);
+        
         // create the URL
-        String url = this.createDevicesURL();
+        String url = this.createDevicesURL(device_type);
         
         // add the device ID to the end
         url += "/devices";
@@ -456,13 +463,21 @@ public class IoTFDeviceManager extends BaseClass {
         this.errorLogger().info("registerNewDevice: RESULT: " + result);
         
         // return our status
-        return (result != null && result.length() > 0);
+        Boolean status = (result != null && result.length() > 0);
+        
+        // save off our device type if successful
+        this.m_device_types.put(device, device_type);
+        
+        // return our status
+        return status;
     }
     
     // process device de-registration
     public Boolean deregisterDevice(String device) {
+        String device_type = this.m_device_types.get(device);
+        
         // create the URL
-        String url = this.createDevicesURL();
+        String url = this.createDevicesURL(device_type);
         
         // add the device ID to the end
         url += "/devices/" + device;
@@ -477,6 +492,12 @@ public class IoTFDeviceManager extends BaseClass {
         this.errorLogger().info("deregisterDevice: RESULT: " + result);
         
         // return our status
-        return (result != null && result.length() > 0);
+        Boolean status = (result != null && result.length() > 0);
+        
+        // delete our device type
+        if (status == true) this.m_device_types.remove(device);
+        
+        // return our status
+        return status;
     }
 }
