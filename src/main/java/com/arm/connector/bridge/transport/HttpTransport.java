@@ -54,6 +54,9 @@ import org.apache.commons.codec.binary.Base64;
  */
 public class HttpTransport extends BaseClass {
     private int m_last_response_code = 0;
+    private boolean m_unqualified_authorization_enable = false;
+    private String m_auth_qualifier = "bearer";
+    private String m_basic_auth_qualifier = "Basic";
     
     // constructor
 
@@ -64,6 +67,17 @@ public class HttpTransport extends BaseClass {
      */
     public HttpTransport(ErrorLogger error_logger, PreferenceManager preference_manager) {
         super(error_logger, preference_manager);
+        this.m_unqualified_authorization_enable = false;
+        String auth_qualifier = this.prefValue("http_auth_qualifier");
+        if (auth_qualifier != null && auth_qualifier.length() > 0) {
+            this.m_auth_qualifier = auth_qualifier;
+        }
+        this.errorLogger().info("HTTP: Authorization Qualifier set to: " + this.m_auth_qualifier);
+    }
+    
+    // enable unqualified authorization headers
+    public void enableUnqualifiedAuthorization(boolean enabled) {
+        this.m_unqualified_authorization_enable = enabled;
     }
 
     // execute GET over http
@@ -459,13 +473,20 @@ public class HttpTransport extends BaseClass {
             // enable basic auth if requested
             if (use_api_token == false && username != null && username.length() > 0 && password != null && password.length() > 0) {
                 String encoding = Base64.encodeBase64String((username + ":" + password).getBytes());
-                connection.setRequestProperty("Authorization", "Basic " + encoding);
+                connection.setRequestProperty("Authorization", this.m_basic_auth_qualifier + " "  + encoding);
                 //this.errorLogger().info("Basic Authorization: " + username + ":" + password + ": " + encoding);
             }
             
             // enable ApiTokenAuth auth if requested
             if (use_api_token == true && api_token != null && api_token.length() > 0) {
-                connection.setRequestProperty("Authorization", "bearer " + api_token);
+                if (this.m_unqualified_authorization_enable == true) {
+                    // use unqualified authorization header...
+                    connection.setRequestProperty("Authorization", api_token);
+                }
+                else {
+                    // use qualification for the authorization header...
+                    connection.setRequestProperty("Authorization", this.m_auth_qualifier + " " + api_token);
+                }
                 //this.errorLogger().info("ApiTokenAuth Authorization: " + api_token);
             }
 

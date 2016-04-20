@@ -24,6 +24,7 @@ package com.arm.connector.bridge.coordinator.processors.ms;
 
 import com.arm.connector.bridge.core.BaseClass;
 import com.arm.connector.bridge.core.ErrorLogger;
+import com.arm.connector.bridge.core.Utils;
 import com.arm.connector.bridge.preferences.PreferenceManager;
 import com.arm.connector.bridge.transport.HttpTransport;
 import java.util.HashMap;
@@ -34,16 +35,14 @@ import java.util.Map;
  * @author Doug Anson
  */
 public class IoTEventHubDeviceManager extends BaseClass {
-    private HttpTransport m_http = null;
- 
-    private String m_iot_event_hub_gw_client_id = null;
-    
-    private String m_iot_event_hub_gw_key = null;
-    private String m_gw_iot_event_hub_auth_token = null;
-       
-    private String m_suffix = null;
-    
-    private HashMap<String,String> m_device_types = null;
+    private HttpTransport           m_http = null;
+    private String                  m_suffix = null;
+    private HashMap<String,String>  m_endpoint_keys = null;
+    private String                  m_device_id_url_template = null;
+    private String                  m_api_version = null;
+    private String                  m_iot_event_hub_name = null;
+    private String                  m_iot_event_hub_add_device_json = null;
+    private String                  m_iot_event_hub_sas_token = null;
     
      // constructor
     public IoTEventHubDeviceManager(ErrorLogger logger,PreferenceManager preferences,HttpTransport http) {
@@ -56,26 +55,36 @@ public class IoTEventHubDeviceManager extends BaseClass {
         
         // HTTP and suffix support
         this.m_http = http;
-        this.m_suffix = suffix;
+        this.m_suffix = suffix;  
         
-        // create the device type map
-        this.m_device_types = new HashMap<>();        
-    }
+        // initialize the endpoint keys map
+        this.m_endpoint_keys = new HashMap<>();
         
-    // update the IoTEventHub Username bindings to use
-    public String updateUsernameBinding(String def) {
-        return def;
+        // IoTEventHub Name
+        this.m_iot_event_hub_name = this.preferences().valueOf("iot_event_hub_name",this.m_suffix);
+        
+        // IoTEventHub REST API Version
+        this.m_api_version = this.preferences().valueOf("iot_event_hub_api_version",this.m_suffix);
+        
+        // IoTEventHub DeviceID REST URL Template
+        this.m_device_id_url_template = this.preferences().valueOf("iot_event_hub_device_id_url",this.m_suffix).replace("__IOT_EVENT_HUB__",this.m_iot_event_hub_name).replace("__API_VERSION__", this.m_api_version);
+    
+        // Add device JSON template
+        this.m_iot_event_hub_add_device_json = this.preferences().valueOf("iot_event_hub_add_device_json",this.m_suffix);
+        
+        // IoTEventHub SAS Token
+        this.m_iot_event_hub_sas_token = this.preferences().valueOf("iot_event_hub_sas_token",this.m_suffix);
     }
     
-    // update the IoTEventHub Password bindings to use
-    public String updatePasswordBinding(String def) {
-        return def;
+    // get the endpoint access key
+    public String getEndpointAccessKey(String ep_name) {
+        return this.m_endpoint_keys.get(ep_name);
     }
     
-    // update the IoTEventHub MQTT ClientID bindings to use
-    public String updateClientIDBinding(String def) {
-        return def;
-    }  
+    // create the endpoint device key
+    private String createIoTEventHubDeviceSymkey(String ep_name,String ep_type) {
+        return Utils.createDeviceKey(ep_name);
+    }
     
     // process new device registration
     public Boolean registerNewDevice(Map message) {
@@ -84,19 +93,19 @@ public class IoTEventHubDeviceManager extends BaseClass {
         String device = (String)message.get("ep");
         
         // create the URL
-        String url = null;
+        String url = this.m_device_id_url_template.replace("__EPNAME__", device);
         
-        // add the device ID to the end
-        url += "/devices";
-        
+        // create the endpoint key
+        String key = this.createIoTEventHubDeviceSymkey(device,device_type);
+         
         // build out the POST payload
-        String payload = null; // this.createAddDeviceJSON(message);
+        String payload = this.m_iot_event_hub_add_device_json.replace("__EPNAME__", device).replace("__EPNAME_KEY__",key);
         
         // DEBUG
-        // this.errorLogger().info("registerNewDevice: URL: " + url + " DATA: " + payload + " USER: " + this.m_watson_iot_api_key + " PW: " + this.m_watson_iot_auth_token);
+        this.errorLogger().info("registerNewDevice: URL: " + url + " DATA: " + payload);
         
         // dispatch and look for the result
-        String result = null; // this.gwpost(url, payload);
+        String result = this.put(url,payload);
         
         // DEBUG
         this.errorLogger().info("registerNewDevice: RESULT: " + result);
@@ -104,28 +113,23 @@ public class IoTEventHubDeviceManager extends BaseClass {
         // return our status
         Boolean status = (result != null && result.length() > 0);
         
-        // save off our device type if successful
-        this.m_device_types.put(device, device_type);
-        
+        // save off the endpoint key
+        this.m_endpoint_keys.put(device,key);
+                
         // return our status
         return status;
     } 
     
     // process device de-registration
-    public Boolean deregisterDevice(String device) {
-        String device_type = this.m_device_types.get(device);
-        
+    public Boolean deregisterDevice(String device) {    
         // create the URL
-        String url = null; // this.createDevicesURL(device_type);
-        
-        // add the device ID to the end
-        url += "/devices/" + device;
+        String url = this.m_device_id_url_template.replace("__EPNAME__", device);
         
         // DEBUG
-        // this.errorLogger().info("deregisterDevice: URL: " + url + " USER: " + this.m_watson_iot_api_key + " PW: " + this.m_watson_iot_auth_token);
+        this.errorLogger().info("deregisterDevice: URL: " + url);
         
         // dispatch and look for the result
-        String result = null; // this.gwdelete(url);
+        String result = this.delete(url);
         
         // DEBUG
         this.errorLogger().info("deregisterDevice: RESULT: " + result);
@@ -133,10 +137,27 @@ public class IoTEventHubDeviceManager extends BaseClass {
         // return our status
         Boolean status = (result != null && result.length() > 0);
         
-        // delete our device type
-        if (status == true) this.m_device_types.remove(device);
+        // remove the endpoint key
+        this.m_endpoint_keys.remove(device);
         
         // return our status
         return status;
+    }
+    
+    // PUT specific data to a given URL (with data)
+    private String put(String url,String payload) {
+        this.m_http.enableUnqualifiedAuthorization(true);
+        String result = this.m_http.httpPutApiTokenAuth(url,this.m_iot_event_hub_sas_token,payload,"application/json",null);
+        this.m_http.enableUnqualifiedAuthorization(false);
+        return result;
+    }
+    
+    // DELETE specific data to a given URL (with data)
+    private String delete(String url) { return this.delete(url,null); }
+    private String delete(String url,String payload) {
+        this.m_http.enableUnqualifiedAuthorization(true);
+        String result = this.m_http.httpDeleteApiTokenAuth(url,this.m_iot_event_hub_sas_token,payload,"application/json",null);
+        this.m_http.enableUnqualifiedAuthorization(false);
+        return result;
     }
 }

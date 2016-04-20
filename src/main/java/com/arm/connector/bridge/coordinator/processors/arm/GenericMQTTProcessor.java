@@ -47,9 +47,9 @@ public class GenericMQTTProcessor extends Processor implements Transport.Receive
     private String                          m_topic_root = null;
     protected SubscriptionList              m_subscriptions = null;
     protected boolean                       m_auto_subscribe_to_obs_resources = false;
-    private TransportReceiveThread          m_mqtt_thread = null;
-    private String                          m_mqtt_host = null;
-    private int                             m_mqtt_port = 0;
+    protected TransportReceiveThread        m_mqtt_thread = null;
+    protected String                        m_mqtt_host = null;
+    protected int                           m_mqtt_port = 0;
     private String                          m_mds_mqtt_request_tag = null;
     private String                          m_mds_topic_root = null;
     protected String                        m_suffix = null;
@@ -58,6 +58,7 @@ public class GenericMQTTProcessor extends Processor implements Transport.Receive
     private HashMap<String,MQTTTransport>   m_mqtt = null;
     private AsyncResponseManager            m_async_response_manager = null;
     private HttpTransport                   m_http = null;
+    protected boolean                       m_use_clean_session = false;
     
     // constructor (singleton)
     public GenericMQTTProcessor(Orchestrator orchestrator,MQTTTransport mqtt,HttpTransport http) {
@@ -89,6 +90,9 @@ public class GenericMQTTProcessor extends Processor implements Transport.Receive
         // build out our configuration
         this.m_mqtt_host = orchestrator.preferences().valueOf("mqtt_address",this.m_suffix);
         this.m_mqtt_port = orchestrator.preferences().intValueOf("mqtt_port",this.m_suffix);
+        
+        // clean session
+        this.m_use_clean_session = this.orchestrator().preferences().booleanValueOf("mqtt_clean_session",this.m_suffix);
         
         // MDS MQTT Request TAG
         this.m_mds_mqtt_request_tag = orchestrator.preferences().valueOf("mds_mqtt_request_tag",this.m_suffix);

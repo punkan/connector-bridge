@@ -310,4 +310,10 @@ public class Utils {
         }
         return Utils._externalIPAddress;
     }
+    
+    // create a device key (IoTEventHub)
+    public static String createDeviceKey(String seed) {
+        String hex = Hex.encodeHexString(seed.getBytes());
+        return Base64.encodeBase64URLSafeString(hex.getBytes());
+    }
 }

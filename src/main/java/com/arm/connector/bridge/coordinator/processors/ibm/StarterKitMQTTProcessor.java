@@ -364,7 +364,7 @@ public class StarterKitMQTTProcessor extends GenericMQTTProcessor implements Pee
     }
     
     // connect
-    public boolean connect(String clientID) {
+    private boolean connect(String clientID) {
         // if not connected attempt
         if (!this.isConnected(clientID)) {
             if (this.mqtt(clientID).connect(this.m_mqtt_ip_address, this.m_mqtt_port, clientID, true)) {
@@ -382,7 +382,7 @@ public class StarterKitMQTTProcessor extends GenericMQTTProcessor implements Pee
     }
     
     // disconnect
-    public void disconnect(String clientID) {
+    private void disconnect(String clientID) {
         if (this.isConnected(clientID)) {
             this.mqtt(clientID).disconnect();
         }

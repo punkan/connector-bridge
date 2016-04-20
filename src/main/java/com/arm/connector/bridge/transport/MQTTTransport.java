@@ -400,9 +400,7 @@ public class MQTTTransport extends Transport {
     
     // have we exceeded our retry count?
     private Boolean retriesExceeded() {
-        if (this.m_num_retries >= this.m_max_retries)
-            return true;
-        return false;
+        return (this.m_num_retries >= this.m_max_retries);
     }
 
     // subscribe to specific topics 

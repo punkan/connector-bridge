@@ -374,19 +374,6 @@ public class WatsonIoTMQTTProcessor extends GenericMQTTProcessor implements Tran
         return this.m_client_id_template + domain.substring(0,length);  // 12 digits only of the domain
     }
     
-    // create the StarterKit compatible clientID
-    private String createStarterKitClientID(String domain) {
-        //
-        // StarterKit clientID format:  "d:<org>:<type>:<device id>"
-        // Where:
-        // org - "quickstart" 
-        // type - we list it as "iotsample-mbed"
-        // deviceID - we bring in the custom name
-        //
-        String device_id = this.prefValue("iotf_starterkit_device_id"); 
-        return "d:quickstart:iotsample-mbed-k64f:" + device_id;
-    }
-    
     // create the endpoint WatsonIoT topic data
     private HashMap<String,Object> createEndpointTopicData(String ep_name,String ep_type) {
         HashMap<String,Object> topic_data = null;
@@ -414,7 +401,7 @@ public class WatsonIoTMQTTProcessor extends GenericMQTTProcessor implements Tran
     }
     
     // connect
-    public boolean connect() {
+    private boolean connect() {
         // if not connected attempt
         if (!this.isConnected()) {
             if (this.mqtt().connect(this.m_mqtt_ip_address, this.m_mqtt_port, this.m_client_id, true)) {
@@ -434,7 +421,7 @@ public class WatsonIoTMQTTProcessor extends GenericMQTTProcessor implements Tran
     }
     
     // disconnect
-    public void disconnect() {
+    private void disconnect() {
         if (this.isConnected()) {
             this.mqtt().disconnect();
         }
@@ -461,7 +448,7 @@ public class WatsonIoTMQTTProcessor extends GenericMQTTProcessor implements Tran
     
     // register topics for CoAP commands
     @SuppressWarnings("empty-statement")
-    public void subscribe(String ep_name,String ep_type) {
+    private void subscribe(String ep_name,String ep_type) {
         if (ep_name != null) {
             // DEBUG
             this.orchestrator().errorLogger().info("WatsonIoT: Subscribing to CoAP command topics for endpoint: " + ep_name);
@@ -486,7 +473,7 @@ public class WatsonIoTMQTTProcessor extends GenericMQTTProcessor implements Tran
     }
     
     // un-register topics for CoAP commands
-    public boolean unsubscribe(String ep_name) {
+    private boolean unsubscribe(String ep_name) {
         boolean do_register = false;
         if (ep_name != null) {
             // DEBUG
