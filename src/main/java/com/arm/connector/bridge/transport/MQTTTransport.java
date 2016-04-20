@@ -356,7 +356,7 @@ public class MQTTTransport extends Transport {
     @Override
     public boolean receiveAndProcess() {
         // DEBUG
-        this.errorLogger().info("MQTTTransport: in receiveAndProcess()...");
+        //this.errorLogger().info("MQTTTransport: in receiveAndProcess()...");
         if (this.isConnected()) {
             try {
                 // receive the MQTT message and process it...
@@ -521,7 +521,7 @@ public class MQTTTransport extends Transport {
         MQTTMessage message = null;
         try {
             // DEBUG
-            this.errorLogger().info("receiveMessage: getting next MQTT message...");
+            //this.errorLogger().info("receiveMessage: getting next MQTT message...");
             message = this.getNextMessage();
             if (this.m_listener != null && message != null) {
                 // call the registered listener to process the received message

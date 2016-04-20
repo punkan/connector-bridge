@@ -24,7 +24,7 @@
 package com.arm.connector.bridge.coordinator.processors.core;
 
 import com.arm.connector.bridge.coordinator.Orchestrator;
-import com.arm.connector.bridge.coordinator.processors.ibm.GenericMQTTProcessor;
+import com.arm.connector.bridge.coordinator.processors.arm.GenericMQTTProcessor;
 import com.arm.connector.bridge.core.ErrorLogger;
 import com.arm.connector.bridge.json.JSONParser;
 import com.arm.connector.bridge.transport.MQTTTransport;

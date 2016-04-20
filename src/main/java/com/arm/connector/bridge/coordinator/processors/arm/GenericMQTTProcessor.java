@@ -21,7 +21,7 @@
  * 
  */
 
-package com.arm.connector.bridge.coordinator.processors.ibm;
+package com.arm.connector.bridge.coordinator.processors.arm;
 
 import com.arm.connector.bridge.coordinator.processors.core.AsyncResponseManager;
 import com.arm.connector.bridge.coordinator.Orchestrator;
@@ -124,6 +124,11 @@ public class GenericMQTTProcessor extends Processor implements Transport.Receive
             this.m_mqtt_thread = new TransportReceiveThread(this.mqtt());
             this.m_mqtt_thread.setOnReceiveListener(this);
         }
+    }
+    
+    // Factory method for initializing the Sample 3rd Party peer
+    public static GenericMQTTProcessor createPeerProcessor(Orchestrator manager,HttpTransport http) {
+        return new GenericMQTTProcessor(manager,new MQTTTransport(manager.errorLogger(),manager.preferences()),http);
     }
     
     // get HTTP if needed

@@ -23,6 +23,7 @@
 
 package com.arm.connector.bridge.coordinator.processors.ibm;
 
+import com.arm.connector.bridge.coordinator.processors.arm.GenericMQTTProcessor;
 import com.arm.connector.bridge.coordinator.Orchestrator;
 import com.arm.connector.bridge.coordinator.processors.interfaces.PeerInterface;
 import com.arm.connector.bridge.core.Utils;
@@ -54,7 +55,7 @@ public class StarterKitMQTTProcessor extends GenericMQTTProcessor implements Pee
         super(manager,null,suffix,http);
         
         // StarterKit Announce
-        this.errorLogger().info("StarterKit Processor ENABLED.");
+        this.errorLogger().info("IBM Watson IoT (StarterKit) Processor ENABLED.");
         
         // nullify the clientID - we handle this it differently in StarterKit...
         this.m_client_id = "error";
