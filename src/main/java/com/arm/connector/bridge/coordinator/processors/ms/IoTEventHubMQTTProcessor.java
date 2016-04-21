@@ -92,7 +92,7 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
         this.m_iot_event_hub_coap_cmd_topic_delete = this.orchestrator().preferences().valueOf("iot_event_hub_coap_cmd_topic",this.m_suffix).replace("__COMMAND_TYPE__","delete");
                         
         // IoTEventHub Device Manager - will initialize and update our IoTEventHub bindings/metadata
-        this.m_iot_event_hub_device_manager = new IoTEventHubDeviceManager(this.orchestrator().errorLogger(),this.orchestrator().preferences(),this.m_suffix,http);
+        this.m_iot_event_hub_device_manager = new IoTEventHubDeviceManager(this.orchestrator().errorLogger(),this.orchestrator().preferences(),this.m_suffix,http,this.orchestrator());
                 
         // set the MQTT password template
         this.m_iot_event_hub_password_template = this.orchestrator().preferences().valueOf("iot_event_hub_mqtt_password",this.m_suffix).replace("__IOT_EVENT_HUB__",this.m_iot_event_hub_name);
@@ -647,7 +647,7 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
         // set the creds for this MQTT Transport instance
         mqtt.setClientID(this.m_client_id);
         mqtt.setUsername(username);
-        mqtt.setPassword(this.createMQTTPassword(ep_name,this.m_iot_event_hub_device_manager.getEndpointAccessKey(ep_name)));
+        mqtt.setPassword(this.createMQTTPassword(ep_name,this.m_iot_event_hub_device_manager.getEndpointKey(ep_name)));
         
         // add it to the list indexed by the endpoint name... not the clientID...
         this.addMQTTTransport(ep_name,mqtt);

@@ -54,9 +54,11 @@ import org.apache.commons.codec.binary.Base64;
  */
 public class HttpTransport extends BaseClass {
     private int m_last_response_code = 0;
-    private boolean m_unqualified_authorization_enable = false;
-    private String m_auth_qualifier = "bearer";
+    private String m_auth_qualifier_default = "bearer";
+    private String m_auth_qualifier = this.m_auth_qualifier_default;
     private String m_basic_auth_qualifier = "Basic";
+    private String m_etag_value = null;
+    private String m_if_match_header_value = null;
     
     // constructor
 
@@ -67,17 +69,44 @@ public class HttpTransport extends BaseClass {
      */
     public HttpTransport(ErrorLogger error_logger, PreferenceManager preference_manager) {
         super(error_logger, preference_manager);
-        this.m_unqualified_authorization_enable = false;
         String auth_qualifier = this.prefValue("http_auth_qualifier");
         if (auth_qualifier != null && auth_qualifier.length() > 0) {
-            this.m_auth_qualifier = auth_qualifier;
+            this.m_auth_qualifier_default = auth_qualifier;
+            this.m_auth_qualifier = this.m_auth_qualifier_default;
         }
         this.errorLogger().info("HTTP: Authorization Qualifier set to: " + this.m_auth_qualifier);
     }
     
-    // enable unqualified authorization headers
-    public void enableUnqualifiedAuthorization(boolean enabled) {
-        this.m_unqualified_authorization_enable = enabled;
+    // set the authorization qualifier
+    public void setAuthorizationQualifier(String qualifier) {
+        if (qualifier != null && qualifier.length() > 0) {
+            this.m_auth_qualifier = qualifier;
+        }
+    }
+    
+    // reset the authorization qualifier
+    private void resetAuthorizationQualifier() {
+        this.m_auth_qualifier = this.m_auth_qualifier_default;
+    }
+    
+    // set the ETag value
+    public void setETagValue(String etag) {
+        this.m_etag_value = etag;
+    }
+    
+    // reset the ETag value
+    private void resetETagValue() {
+        this.m_etag_value = null;
+    }
+    
+    // set the If-Match value
+    public void setIfMatchValue(String ifMatch) {
+        this.m_if_match_header_value = ifMatch;
+    }
+    
+    // reset the If-Match value
+    private void resetIfMatchValue() {
+        this.m_if_match_header_value = null;
     }
 
     // execute GET over http
@@ -479,17 +508,34 @@ public class HttpTransport extends BaseClass {
             
             // enable ApiTokenAuth auth if requested
             if (use_api_token == true && api_token != null && api_token.length() > 0) {
-                if (this.m_unqualified_authorization_enable == true) {
-                    // use unqualified authorization header...
-                    connection.setRequestProperty("Authorization", api_token);
-                }
-                else {
-                    // use qualification for the authorization header...
-                    connection.setRequestProperty("Authorization", this.m_auth_qualifier + " " + api_token);
-                }
-                //this.errorLogger().info("ApiTokenAuth Authorization: " + api_token);
+               // use qualification for the authorization header...
+               connection.setRequestProperty("Authorization", this.m_auth_qualifier + " " + api_token);
+               //this.errorLogger().info("ApiTokenAuth Authorization: " + api_token);
+               
+               // Always reset to the established default
+               this.resetAuthorizationQualifier();
+            }
+            
+            // ETag support if requested
+            if (this.m_etag_value != null && this.m_etag_value.length() > 0) {
+                // set the ETag header value
+               connection.setRequestProperty("ETag",this.m_etag_value);
+               //this.errorLogger().info("ETag Value: " + this.m_etag_value);
+               
+                // Always reset to the established default
+                this.resetETagValue();
             }
 
+            // If-Match support if requested
+            if (this.m_if_match_header_value != null && this.m_if_match_header_value.length() > 0) {
+                // set the If-Match header value
+               connection.setRequestProperty("If-Match",this.m_if_match_header_value);
+               //this.errorLogger().info("If-Match Value: " + this.m_if_match_header_value);
+               
+                // Always reset to the established default
+                this.resetIfMatchValue();
+            }
+            
             // specify content type if requested
             if (content_type != null && content_type.length() > 0) {
                 connection.setRequestProperty("Content-Type", content_type);
