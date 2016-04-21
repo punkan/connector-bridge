@@ -83,7 +83,33 @@ public class IoTEventHubDeviceManager extends BaseClass {
     private Orchestrator orchestrator() { return this.m_orchestrator; }
     
     // process new device registration
-    public Boolean registerNewDevice(Map message) {
+    public boolean registerNewDevice(Map message) {
+        boolean status = false;
+        
+        // get the device details
+        String device_type = (String)message.get("ept");
+        String device = (String)message.get("ep");
+        
+        // see if we already have a device...
+        HashMap<String,String> ep = this.getDeviceDetails(device);
+        if (ep != null) {
+            // save off this device 
+            this.saveDeviceDetails(device, ep);
+            
+            // we are good
+            status = true;
+        }
+        else {
+            // device is not registered... so create/register it
+            status = this.createAndRegisterNewDevice(message);
+        }
+        
+        // return our status
+        return status;
+    }
+    
+    // create and register a new device
+    private boolean createAndRegisterNewDevice(Map message) {
         // create the new device type
         String device_type = (String)message.get("ept");
         String device = (String)message.get("ep");
@@ -146,10 +172,45 @@ public class IoTEventHubDeviceManager extends BaseClass {
         return status;
     }
     
+    // get a given device's details...
+    private HashMap<String,String> getDeviceDetails(String device) {
+        HashMap<String,String> ep = null;
+        
+        // create the URL
+        String url = this.m_device_id_url_template.replace("__EPNAME__", device);
+        
+        // DEBUG
+        this.errorLogger().info("getDeviceDetails: URL: " + url);
+        
+        // dispatch and look for the result
+        String result = this.get(url);
+        
+        // DEBUG
+        this.errorLogger().info("getDeviceDetails: RESULT: " + result);
+        
+        // return our status
+        Boolean status = (result != null && result.length() > 0);
+        
+        // parse our result...
+        if (status == true) {
+            ep = this.parseDeviceDetails(device,result);
+        }
+        
+        // return our endpoint details
+        return ep;
+    }
+    
+    // GET specific data to a given URL 
+    private String get(String url) {
+        this.m_http.setAuthorizationQualifier(this.m_iot_event_hub_auth_qualifier);
+        String result = this.m_http.httpsGetApiTokenAuth(url,this.m_iot_event_hub_sas_token,null,"application/json",null);
+        return result;
+    }
+    
     // PUT specific data to a given URL (with data)
     private String put(String url,String payload) {
         this.m_http.setAuthorizationQualifier(this.m_iot_event_hub_auth_qualifier);
-        String result = this.m_http.httpPutApiTokenAuth(url,this.m_iot_event_hub_sas_token,payload,"application/json",null);
+        String result = this.m_http.httpsPutApiTokenAuth(url,this.m_iot_event_hub_sas_token,payload,"application/json",null);
         return result;
     }
     
@@ -159,7 +220,7 @@ public class IoTEventHubDeviceManager extends BaseClass {
         this.m_http.setAuthorizationQualifier(this.m_iot_event_hub_auth_qualifier);
         this.m_http.setETagValue(etag);             // ETag header required...
         this.m_http.setIfMatchValue("*");           // If-Match header required... 
-        String result = this.m_http.httpDeleteApiTokenAuth(url,this.m_iot_event_hub_sas_token,payload,"application/json",null);
+        String result = this.m_http.httpsDeleteApiTokenAuth(url,this.m_iot_event_hub_sas_token,payload,"application/json",null);
         return result;
     }
     
@@ -191,41 +252,102 @@ public class IoTEventHubDeviceManager extends BaseClass {
         return json;
     }
     
+    // parse our device details
+    private HashMap<String,String> parseDeviceDetails(String device,String json) { return this.parseDeviceDetails(device,"",json); }
+    private HashMap<String,String> parseDeviceDetails(String device,String device_type,String json) {
+        HashMap<String,String> ep = null;
+        
+        // check the input json
+        if (json != null) {
+            try {
+                if (json.contains("ErrorCode:DeviceNotFound;") == false) {
+                    // fix up empty values
+                    json = this.helpJSONParser(json);
+
+                    // Parse the JSON...
+                    Map parsed = this.orchestrator().getJSONParser().parseJson(json);
+
+                    // Device Details
+                    ep = new HashMap<>();
+
+                    // Device Keys
+                    Map authentication = (Map)parsed.get("authentication");
+                    Map symmetric_key = (Map)authentication.get("symmetricKey");
+                    ep.put("primary_key",(String)symmetric_key.get("primaryKey"));
+                    ep.put("secondary_key",(String)symmetric_key.get("secondaryKey"));
+
+                    // ETag for device
+                    ep.put("etag",(String)parsed.get("etag"));
+
+                    // Device Name
+                    ep.put("deviceID",(String)parsed.get("deviceId"));
+                    ep.put("ep_name",device);
+                    ep.put("ep_type",device_type);
+
+                    // record the entire record for later...
+                    ep.put("json_record",json);
+
+                    // DEBUG
+                    this.errorLogger().info("parseDeviceDetails for " + device + ": " + ep);
+                }
+                else {
+                    // device is not found
+                    this.errorLogger().warning("parseDeviceDetails: device " + device + " is not a registered device (OK)");
+                    ep = null;
+                }
+            }
+            catch (Exception ex) {
+                // exception in parsing... so nullify...
+                this.errorLogger().warning("parseDeviceDetails: exception while parsing device " + device + " JSON: " + json,ex);
+                if (ep != null) {
+                    this.errorLogger().warning("parseDeviceDetails: last known ep contents: " + ep);
+                }
+                else {
+                    this.errorLogger().warning("parseDeviceDetails: last known ep contents: EMPTY");
+                }
+                ep = null;
+            }
+        }
+        else {
+            this.errorLogger().warning("parseDeviceDetails: input JSON is EMPTY");
+            ep = null;
+        }
+        
+        // return our endpoint details
+        return ep;
+    }
+    
     // Parse the AddDevice result and capture key elements 
     private void saveAddDeviceDetails(String device,String device_type,String json) {
-        // fix up empty values
-        json = this.helpJSONParser(json);
+        // parse our device details into structure
+        HashMap<String,String> ep = this.parseDeviceDetails(device, device_type, json);
+        if (ep != null) {
+            // save off the details
+            this.saveDeviceDetails(device, ep);
+        }
+        else {
+            // unable to parse details
+            this.errorLogger().warning("saveAddDeviceDetails: ERROR: unable to parse device " + device + " details JSON: " + json);
+        }
+    }
+    
+    // save device details
+    public void saveDeviceDetails(String device,HashMap<String,String> entry) {
+        // don't overwrite an existing entry..
+        if (this.m_endpoint_details.get(device) == null) {
+            // DEBUG
+            this.errorLogger().info("saveDeviceDetails: saving " + device + ": " + entry);
+
+            // save off the endpoint details
+            this.m_endpoint_details.put(device,entry);
+        }
+    }
+    
+    // create a MQTT Password for a given device
+    public String createMQTTPassword(String device) {
+        // this must be generated per device created... 
         
-        // DEBUG
-        this.errorLogger().info("saveAddDeviceDetails JSON " + device + ": " + json);
-        
-        // Parse the JSON...
-        Map parsed = this.orchestrator().getJSONParser().parseJson(json);
-        
-        // Device Details
-        HashMap<String,String> entry = new HashMap<>();
-        
-        // Device Keys
-        Map authentication = (Map)parsed.get("authentication");
-        Map symmetric_key = (Map)authentication.get("symmetricKey");
-        entry.put("primary_key",(String)symmetric_key.get("primaryKey"));
-        entry.put("secondary_key",(String)symmetric_key.get("secondaryKey"));
-        
-        // ETag for device
-        entry.put("etag",(String)parsed.get("etag"));
-        
-        // Device Name
-        entry.put("deviceID",(String)parsed.get("deviceId"));
-        entry.put("ep_name",device);
-        entry.put("ep_type",device_type);
-        
-        // record the entire record for later...
-        entry.put("json_record",json);
-        
-        // DEBUG
-        this.errorLogger().info("saveAddDeviceDetails for " + device + ": " + entry);
-        
-        // save off the endpoint key
-        this.m_endpoint_details.put(device,entry);
+        // XXX fixed for now...
+        return this.prefValue("iot_event_hub_tmp_device_sas",this.m_suffix);
     }
 }

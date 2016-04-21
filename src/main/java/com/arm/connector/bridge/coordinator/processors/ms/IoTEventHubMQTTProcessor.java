@@ -104,13 +104,7 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
     // we have to override the creation of the authentication hash.. it has to be dependent on a given endpoint name
     @Override
     public String createAuthenticationHash() {
-        String hash = this.createIoTEventHubAuthenticationHash(this.prefValue("iot_event_hub_name",this.m_suffix));
-        for (Map.Entry pair : this.m_mqtt_thread_list.entrySet()) {
-            hash = this.createIoTEventHubAuthenticationHash(hash + this.mqtt((String)pair.getKey()).createAuthenticationHash());
-        }
-   
-        // return the hash
-        return hash;
+        return Utils.createHash(this.prefValue("iot_event_hub_sas_token",this.m_suffix));
     }
     
     // OVERRIDE: initListener() needs to accomodate a MQTT connection for each endpoint
@@ -131,7 +125,7 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
     
     // Connection to IoTEventHub MQTT vs. generic MQTT...
     private boolean connectMQTT(String ep_name) {
-        return this.mqtt(ep_name).connect(this.m_mqtt_host,this.m_mqtt_port,this.m_client_id,this.m_use_clean_session);
+        return this.mqtt(ep_name).connect(this.m_mqtt_host,this.m_mqtt_port,ep_name,this.m_use_clean_session);
     }
     
     // OVERRIDE: process a mDS notification for IoTEventHub
@@ -333,8 +327,9 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
     // disconnect
     private void disconnect(String ep_name) {
         if (this.isConnected(ep_name)) {
-            this.mqtt(ep_name).disconnect();
+            this.mqtt(ep_name).disconnect(true);
         }
+        this.remove(ep_name);
     }
     
     // are we connected
@@ -359,7 +354,7 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
     // register topics for CoAP commands
     @SuppressWarnings("empty-statement")
     private void subscribe(String ep_name,String ep_type) {
-        if (ep_name != null) {
+        if (ep_name != null && this.validateMQTTConnection(ep_name,ep_type)) {
             // DEBUG
             this.orchestrator().errorLogger().info("IoTEventHub: Subscribing to CoAP command topics for endpoint: " + ep_name);
             try {
@@ -384,8 +379,8 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
     
     // un-register topics for CoAP commands
     private boolean unsubscribe(String ep_name) {
-        boolean do_register = false;
-        if (ep_name != null) {
+        boolean unsubscribed = false;
+        if (ep_name != null && this.mqtt(ep_name) != null) {
             // DEBUG
             this.orchestrator().errorLogger().info("IoTEventHub: Un-Subscribing to CoAP command topics for endpoint: " + ep_name);
             try {
@@ -397,7 +392,7 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
                 else {
                     // not in subscription list (OK)
                     this.orchestrator().errorLogger().info("IoTEventHub: Endpoint: " + ep_name + " not in subscription list (OK).");
-                    do_register = true;
+                    unsubscribed = true;
                 }
             }
             catch (Exception ex) {
@@ -406,8 +401,8 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
         }
         else {
             this.orchestrator().errorLogger().info("IoTEventHub: NULL Endpoint name in unsubscribe()... ignoring...");
-        }
-        return do_register;
+        }            
+        return unsubscribed;
     }
     
     private String getTopicElement(String topic,int index) {
@@ -595,6 +590,30 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
         return null;
     }
     
+    // validate the MQTT Connection
+    private boolean validateMQTTConnection(String ep_name,String ep_type) {
+        boolean connected = false;
+        
+        // see if we already have a connection for this endpoint...
+        if (this.mqtt(ep_name) != null) {
+            // see if we are connected
+            if (this.isConnected(ep_name) == false) {
+                // disconnect
+                this.disconnect(ep_name);
+                
+                // create a new one
+                this.createAndStartMQTTForEndpoint(ep_name,ep_type);
+            }
+        }
+        else {
+            // create a MQTT connection for this endpoint... 
+            this.createAndStartMQTTForEndpoint(ep_name,ep_type);
+        }
+        
+        // return our connection status
+        return this.isConnected(ep_name);
+    }
+    
     // process new device registration
     @Override
     protected Boolean registerNewDevice(Map message) {
@@ -602,8 +621,8 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
             // create the device in IoTEventHub
             Boolean success = this.m_iot_event_hub_device_manager.registerNewDevice(message);
             
-            // if successful, add a MQTT Transport instance 
-            if (success == true) this.createAndStartMQTTForEndpoint((String)message.get("ep"),(String)message.get("ept"));
+            // if successful, validate (i.e. add...) an MQTT Connection
+            if (success == true) this.validateMQTTConnection((String)message.get("ep"),(String)message.get("ept"));
             
             // return status
             return success;
@@ -615,6 +634,9 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
     @Override
     protected Boolean deregisterDevice(String device) {
         if (this.m_iot_event_hub_device_manager != null) {
+            // DEBUG
+            this.errorLogger().info("deregisterDevice(IoTEventHub): deregistering device: " + device);
+            
             // disconnect, remove the threaded listener... 
             if (this.m_mqtt_thread_list.get(device) != null) {
                 try {
@@ -622,18 +644,20 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
                 } 
                 catch (Exception ex) {
                     // note but continue...
-                    this.errorLogger().info("Exception caught in deregisterDevice(IoTEventHub)",ex);
+                    this.errorLogger().warning("deregisterDevice(IoTEventHub): exception during deregistration",ex);
                 }
                 this.m_mqtt_thread_list.remove(device);
             }
             
             // also remove MQTT Transport instance too...
-            this.remove(device);
+            this.disconnect(device);
             
             // remove the device from IoTEventHub
-            return this.m_iot_event_hub_device_manager.deregisterDevice(device);
+            if (this.m_iot_event_hub_device_manager.deregisterDevice(device) == false) {
+                this.errorLogger().warning("deregisterDevice(IoTEventHub): unable to de-register device from IoTEventHub...");
+            }
         }
-        return false;
+        return true;
     }
     
     // add a MQTT transport for a given endpoint - this is how MS IoTEventHub MQTT integration works... 
@@ -645,9 +669,9 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
         String username = this.orchestrator().preferences().valueOf("iot_event_hub_mqtt_username",this.m_suffix).replace("__IOT_EVENT_HUB__",this.m_iot_event_hub_name).replace("__EPNAME__",ep_name);
 
         // set the creds for this MQTT Transport instance
-        mqtt.setClientID(this.m_client_id);
+        mqtt.setClientID(ep_name);
         mqtt.setUsername(username);
-        mqtt.setPassword(this.createMQTTPassword(ep_name,this.m_iot_event_hub_device_manager.getEndpointKey(ep_name)));
+        mqtt.setPassword(this.m_iot_event_hub_device_manager.createMQTTPassword(ep_name));
         
         // add it to the list indexed by the endpoint name... not the clientID...
         this.addMQTTTransport(ep_name,mqtt);
@@ -656,27 +680,18 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
         this.errorLogger().info("IoTEventHub: connecting to MQTT for endpoint: " + ep_name + " type: " + ep_type + "...");
         
         // connect and start listening... 
-        if (true || this.connectMQTT(ep_name)) {
+        if (this.connectMQTT(ep_name)) {
             // DEBUG
             this.errorLogger().info("IoTEventHub: connected to MQTT. Creating and registering listener Thread for endpoint: " + ep_name + " type: " + ep_type);
             
             // create and start the listener
-       //     TransportReceiveThread listener = new TransportReceiveThread(mqtt);
-       //     this.m_mqtt_thread_list.put(ep_name,listener);
-       //     listener.start();
+            TransportReceiveThread listener = new TransportReceiveThread(mqtt);
+            this.m_mqtt_thread_list.put(ep_name,listener);
+            listener.start();
         } 
         else {
             // unable to connect!
             this.errorLogger().critical("IoTEventHub: Unable to connect to MQTT for endpoint: " + ep_name + " type: " + ep_type);
         }
-    }
-    
-    private String createMQTTPassword(String ep_name,String ep_key) {
-        return this.m_iot_event_hub_password_template.replace("__EPNAME__", ep_name).replace("__EPNAME_KEY__", ep_key);
-    }
-    
-    // create a default AuthenticationHash for the webhook
-    private String createIoTEventHubAuthenticationHash(String seed) {
-        return Utils.createHash(seed + "_" + this.createMQTTPassword(seed,seed)); 
     }
 }

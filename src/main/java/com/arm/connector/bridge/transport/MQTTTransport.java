@@ -201,7 +201,7 @@ public class MQTTTransport extends Transport {
                 }
                 
                 // DEBUG
-                this.errorLogger().info("MQTTTransport: URL: [" + url + "] clientID: [" + clientID + "]");
+                this.errorLogger().info("MQTTTransport: URL: [" + url + "] clientID: [" + clientID + "] clean: " + clean_session);
  
                 // setup the hostname & port
                 endpoint.setHost(url);
@@ -229,8 +229,11 @@ public class MQTTTransport extends Transport {
                     endpoint.setClientId(clientID);
                 }
                 else if (clean_session == false) {
-                    // set a defaulted clientID
-                    endpoint.setClientId(this.prefValue("mqtt_default_client_id",this.m_suffix));
+                    String def_client_id = this.prefValue("mqtt_default_client_id",this.m_suffix);
+                    if (def_client_id != null && def_client_id.equalsIgnoreCase("off") == false) {
+                        // set a defaulted clientID
+                        endpoint.setClientId(def_client_id);
+                    }
                 }
                 endpoint.setCleanSession(clean_session);
                 String will = this.prefValue("mqtt_will_message",this.m_suffix);
@@ -290,7 +293,7 @@ public class MQTTTransport extends Transport {
 
                         // DEBUG
                         if (connected == true) {
-                            this.errorLogger().info("MQTTTransport: Connection to: " + url + " successful");
+                            this.errorLogger().warning("MQTTTransport: Connection to: " + url + " successful");
                             this.m_connect_host = host;
                             this.m_connect_port = port;
                             this.m_client_id = endpoint.getClientId().toString();
@@ -298,7 +301,7 @@ public class MQTTTransport extends Transport {
                             this.m_connect_clean_session = clean_session;
                         }
                         else {
-                            this.errorLogger().info("MQTTTransport: Connection to: " + url + " FAILED");
+                            this.errorLogger().warning("MQTTTransport: Connection to: " + url + " FAILED");
                         }
                     }
                     else {
@@ -306,16 +309,16 @@ public class MQTTTransport extends Transport {
                     }
                 }
                 catch (Exception ex) {
-                    this.errorLogger().info("MQTTTransport: Exception during connect()",ex);
+                    this.errorLogger().warning("MQTTTransport: Exception during connect()",ex);
                     
                     // DEBUG
-                    this.errorLogger().info("MQTT: URL: " + url);
-                    this.errorLogger().info("MQTT: clientID: " + this.m_client_id);
-                    this.errorLogger().info("MQTT: clean_session: " + clean_session);
-                    this.errorLogger().info("MQTT: username: " + username);
-                    this.errorLogger().info("MQTT: password: " + pw);
-                    this.errorLogger().info("MQTT: host: " + host);
-                    this.errorLogger().info("MQTT: port: " + port);
+                    this.errorLogger().warning("MQTT: URL: " + url);
+                    this.errorLogger().warning("MQTT: clientID: " + this.m_client_id);
+                    this.errorLogger().warning("MQTT: clean_session: " + clean_session);
+                    this.errorLogger().warning("MQTT: username: " + username);
+                    this.errorLogger().warning("MQTT: password: " + pw);
+                    this.errorLogger().warning("MQTT: host: " + host);
+                    this.errorLogger().warning("MQTT: port: " + port);
                     
                     // sleep for a short bit...
                     try {
@@ -624,7 +627,7 @@ public class MQTTTransport extends Transport {
             // PREFIX determination
             String prefix = "tcp://";
             if (secured) {
-                prefix = "tls://";
+                prefix = "ssl://";
                 port += 7000;           // 1883 --> 8883
             }
             this.m_host_url = prefix + host + ":" + port;

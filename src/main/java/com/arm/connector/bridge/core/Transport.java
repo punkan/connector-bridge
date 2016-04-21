@@ -30,42 +30,24 @@ import com.arm.connector.bridge.preferences.PreferenceManager;
  * @author Doug Anson
  */
 public abstract class Transport extends BaseClass {
-
-    /**
-     *
-     */
-    protected boolean m_connected = false;
-    private final ErrorLogger m_error_logger = null;
-    private final PreferenceManager m_preference_manager = null;
-
-    /**
-     *
-     */
-    protected Object m_endpoint = null;
-
-    /**
-     *
-     */
+    protected boolean                   m_connected = false;
+    private final ErrorLogger           m_error_logger = null;
+    private final PreferenceManager     m_preference_manager = null;
+    protected Object                    m_endpoint = null;
     protected Transport.ReceiveListener m_listener = null;
-
-    // Interface for receive listener callbacks
-    /**
-     *
-     */
+    
+    // ReceiveListener class for Transport callback event processing
     public interface ReceiveListener {
-        // on message receive, this will be callback to the registered listener
-
         /**
-         *
+         * on message receive, this will be callback to the registered listener
          * @param topic
          * @param message
          */
         public void onMessageReceive(String topic, String message);
     }
 
-    // Constructor
     /**
-     *
+     * Constructor
      * @param error_logger
      * @param preference_manager
      */
@@ -74,49 +56,38 @@ public abstract class Transport extends BaseClass {
         this.m_connected = false;
     }
 
-    // main thread loop
     /**
-     *
+     * main thread loop
      */
     public abstract boolean receiveAndProcess();
-
-    // connect transport
     /**
-     *
+     * connect transport
      * @param host
      * @param port
      * @return
      */
     public abstract boolean connect(String host, int port);
-
-    // send a message
     /**
-     *
+     * send a message
      * @param topic
      * @param message
      */
     public abstract void sendMessage(String topic,String message);
-
-    // disconnect
     /**
-     *
+     * disconnect
      */
     public void disconnect() {
         this.m_connected = false;
     }
-
-    // set the receive listener
     /**
-     *
+     * set the receive listener
      * @param listener
      */
     public void setOnReceiveListener(Transport.ReceiveListener listener) {
         this.m_listener = listener;
     }
-
-    // connection status
     /**
-     *
+     * connection status
      * @return
      */
     public boolean isConnected() {
