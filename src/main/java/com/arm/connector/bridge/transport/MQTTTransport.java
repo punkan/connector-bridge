@@ -405,53 +405,65 @@ public class MQTTTransport extends Transport {
 
     // subscribe to specific topics 
     public void subscribe(Topic[] list) {
-        try {
-            this.m_subscribe_topics = null;
-            this.m_qoses = this.m_connection.subscribe(list);
-            this.m_subscribe_topics = list;
-            //this.errorLogger().info("MQTTTransport: Subscribed to TOPIC(s): " + list.length);
+        if (this.m_connection != null) {
+            try {
+                this.m_subscribe_topics = null;
+                this.m_qoses = this.m_connection.subscribe(list);
+                this.m_subscribe_topics = list;
+                //this.errorLogger().info("MQTTTransport: Subscribed to TOPIC(s): " + list.length);
+            }
+            catch (Exception ex) {
+                if (this.retriesExceeded()) {
+                    // unable to subscribe to topic (final)
+                    this.errorLogger().critical("MQTTTransport: unable to subscribe to topic (final)", ex);
+                }
+                else {
+                    // unable to subscribe to topic
+                    this.errorLogger().warning("MQTTTransport: unable to subscribe to topic (" + this.m_num_retries + " of " + this.m_max_retries + ")", ex);
+
+                    // attempt reset
+                    this.resetConnection();
+
+                    // recall
+                    this.subscribe(list);
+                }
+            }
         }
-        catch (Exception ex) {
-            if (this.retriesExceeded()) {
-                // unable to subscribe to topic (final)
-                this.errorLogger().critical("MQTTTransport: unable to subscribe to topic (final)", ex);
-            }
-            else {
-                // unable to subscribe to topic
-                this.errorLogger().warning("MQTTTransport: unable to subscribe to topic (" + this.m_num_retries + " of " + this.m_max_retries + ")", ex);
-
-                // attempt reset
-                this.resetConnection();
-
-                // recall
-                this.subscribe(list);
-            }
+        else {
+            // unable to subscribe - not connected... 
+            this.errorLogger().warning("MQTTTransport: unable to subscribe. Connection is missing and/or NULL");
         }
     }
     
     // unsubscribe from specific topics
     public void unsubscribe(String[] list) {
-        try {
-            this.m_unsubscribe_topics = null;
-            this.m_connection.unsubscribe(list);
-            this.m_unsubscribe_topics = list;
-            //this.errorLogger().info("MQTTTransport: Unsubscribed from TOPIC(s): " + list.length);
+        if (this.m_connection != null) {
+            try {
+                this.m_unsubscribe_topics = null;
+                this.m_connection.unsubscribe(list);
+                this.m_unsubscribe_topics = list;
+                //this.errorLogger().info("MQTTTransport: Unsubscribed from TOPIC(s): " + list.length);
+            }
+            catch (Exception ex) {
+                if (this.retriesExceeded()) {
+                    // unable to unsubscribe from topic (final)
+                    this.errorLogger().critical("MQTTTransport: unable to unsubscribe from topic (final)", ex);
+                }
+                else {
+                               // unable to subscribe to topic
+                    this.errorLogger().warning("MQTTTransport: unable to unsubscribe to topic (" + this.m_num_retries + " of " + this.m_max_retries + ")", ex);
+
+                    // attempt reset
+                    this.resetConnection();
+
+                    // recall
+                    this.unsubscribe(list);
+                }
+            }
         }
-        catch (Exception ex) {
-            if (this.retriesExceeded()) {
-                // unable to unsubscribe from topic (final)
-                this.errorLogger().critical("MQTTTransport: unable to unsubscribe from topic (final)", ex);
-            }
-            else {
-                           // unable to subscribe to topic
-                this.errorLogger().warning("MQTTTransport: unable to unsubscribe to topic (" + this.m_num_retries + " of " + this.m_max_retries + ")", ex);
-
-                // attempt reset
-                this.resetConnection();
-
-                // recall
-                this.unsubscribe(list);
-            }
+        else {
+            // unable to subscribe - not connected... 
+            this.errorLogger().warning("MQTTTransport: unable to unsubscribe. Connection is missing and/or NULL");
         }
     }
 

@@ -656,14 +656,14 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
         this.errorLogger().info("IoTEventHub: connecting to MQTT for endpoint: " + ep_name + " type: " + ep_type + "...");
         
         // connect and start listening... 
-        if (this.connectMQTT(ep_name)) {
+        if (true || this.connectMQTT(ep_name)) {
             // DEBUG
             this.errorLogger().info("IoTEventHub: connected to MQTT. Creating and registering listener Thread for endpoint: " + ep_name + " type: " + ep_type);
             
             // create and start the listener
-            TransportReceiveThread listener = new TransportReceiveThread(mqtt);
-            this.m_mqtt_thread_list.put(ep_name,listener);
-            listener.start();
+       //     TransportReceiveThread listener = new TransportReceiveThread(mqtt);
+       //     this.m_mqtt_thread_list.put(ep_name,listener);
+       //     listener.start();
         } 
         else {
             // unable to connect!
