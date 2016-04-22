@@ -44,7 +44,6 @@ import org.fusesource.mqtt.client.Topic;
 public class WatsonIoTMQTTProcessor extends GenericMQTTProcessor implements Transport.ReceiveListener, PeerInterface {
     public static int               NUM_COAP_VERBS = 4;                                   // GET, PUT, POST, DELETE
     private String                  m_mqtt_ip_address = null;
-    private int                     m_mqtt_port = 0;
     private String                  m_watson_iot_observe_notification_topic = null;
     private String                  m_watson_iot_coap_cmd_topic_get = null;
     private String                  m_watson_iot_coap_cmd_topic_put = null;
@@ -55,7 +54,6 @@ public class WatsonIoTMQTTProcessor extends GenericMQTTProcessor implements Tran
     private String                  m_watson_iot_org_key = null;
     private String                  m_client_id_template = null;
     private String                  m_watson_iot_device_data_key = null;
-    private Boolean                 m_use_clean_session = false;
     
     // WatsonIoT bindings
     private String                  m_watson_iot_api_key = null;
@@ -497,6 +495,11 @@ public class WatsonIoTMQTTProcessor extends GenericMQTTProcessor implements Tran
         else {
             this.orchestrator().errorLogger().info("WatsonIoT: NULL Endpoint name in unsubscribe()... ignoring...");
         }
+        
+        // clean up
+        if (ep_name != null) this.m_watson_iot_endpoints.remove(ep_name);
+        
+        // return the unsubscribe status
         return do_register;
     }
     

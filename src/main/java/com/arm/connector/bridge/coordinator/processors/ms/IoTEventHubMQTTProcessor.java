@@ -387,7 +387,7 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
                 HashMap<String,Object> topic_data = (HashMap<String,Object>)this.m_iot_event_hub_endpoints.get(ep_name);
                 if (topic_data != null) {
                     // unsubscribe...
-                    this.mqtt(ep_name).unsubscribe((String[])topic_data.get("topic_string_list"));
+                    this.mqtt(ep_name).unsubscribe((String[])topic_data.get("topic_string_list")); 
                 } 
                 else {
                     // not in subscription list (OK)
@@ -399,9 +399,19 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
                 this.orchestrator().errorLogger().info("IoTEventHub: Exception in unsubscribe for " + ep_name + " : " + ex.getMessage());
             }
         }
+        else if (this.mqtt(ep_name) != null) {
+            this.orchestrator().errorLogger().info("IoTEventHub: NULL Endpoint name... ignoring unsubscribe()...");
+            unsubscribed = true;
+        }
         else {
-            this.orchestrator().errorLogger().info("IoTEventHub: NULL Endpoint name in unsubscribe()... ignoring...");
-        }            
+            this.orchestrator().errorLogger().info("IoTEventHub: No MQTT connection for " + ep_name + "... ignoring unsubscribe()...");
+            unsubscribed = true;
+        }  
+        
+        // clean up
+        if (ep_name != null) this.m_iot_event_hub_endpoints.remove(ep_name);
+        
+        // return the unsubscribe status
         return unsubscribed;
     }
     
@@ -600,6 +610,7 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
             if (this.isConnected(ep_name) == false) {
                 // disconnect
                 this.disconnect(ep_name);
+                this.remove(ep_name);
                 
                 // create a new one
                 this.createAndStartMQTTForEndpoint(ep_name,ep_type);
@@ -661,37 +672,44 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
     }
     
     // add a MQTT transport for a given endpoint - this is how MS IoTEventHub MQTT integration works... 
-    private void createAndStartMQTTForEndpoint(String ep_name,String ep_type) {
-        // create a new MQTT Transport instance
-        MQTTTransport mqtt = new MQTTTransport(this.errorLogger(),this.preferences());
-        
-        // MQTT username is based upon the device ID (endpoint_name)
-        String username = this.orchestrator().preferences().valueOf("iot_event_hub_mqtt_username",this.m_suffix).replace("__IOT_EVENT_HUB__",this.m_iot_event_hub_name).replace("__EPNAME__",ep_name);
+    private synchronized void createAndStartMQTTForEndpoint(String ep_name,String ep_type) {
+        if (this.mqtt(ep_name) == null) {
+            // create a new MQTT Transport instance
+            MQTTTransport mqtt = new MQTTTransport(this.errorLogger(),this.preferences());
 
-        // set the creds for this MQTT Transport instance
-        mqtt.setClientID(ep_name);
-        mqtt.setUsername(username);
-        mqtt.setPassword(this.m_iot_event_hub_device_manager.createMQTTPassword(ep_name));
-        
-        // add it to the list indexed by the endpoint name... not the clientID...
-        this.addMQTTTransport(ep_name,mqtt);
-        
-        // DEBUG
-        this.errorLogger().info("IoTEventHub: connecting to MQTT for endpoint: " + ep_name + " type: " + ep_type + "...");
-        
-        // connect and start listening... 
-        if (this.connectMQTT(ep_name)) {
+            // MQTT username is based upon the device ID (endpoint_name)
+            String username = this.orchestrator().preferences().valueOf("iot_event_hub_mqtt_username",this.m_suffix).replace("__IOT_EVENT_HUB__",this.m_iot_event_hub_name).replace("__EPNAME__",ep_name);
+
+            // set the creds for this MQTT Transport instance
+            mqtt.setClientID(ep_name);
+            mqtt.setUsername(username);
+            mqtt.setPassword(this.m_iot_event_hub_device_manager.createMQTTPassword(ep_name));
+
+            // add it to the list indexed by the endpoint name... not the clientID...
+            this.addMQTTTransport(ep_name,mqtt);
+
             // DEBUG
-            this.errorLogger().info("IoTEventHub: connected to MQTT. Creating and registering listener Thread for endpoint: " + ep_name + " type: " + ep_type);
-            
-            // create and start the listener
-            TransportReceiveThread listener = new TransportReceiveThread(mqtt);
-            this.m_mqtt_thread_list.put(ep_name,listener);
-            listener.start();
-        } 
+            this.errorLogger().info("IoTEventHub: connecting to MQTT for endpoint: " + ep_name + " type: " + ep_type + "...");
+
+            // connect and start listening... 
+            if (this.connectMQTT(ep_name)) {
+                // DEBUG
+                this.errorLogger().info("IoTEventHub: connected to MQTT. Creating and registering listener Thread for endpoint: " + ep_name + " type: " + ep_type);
+
+                // create and start the listener
+                TransportReceiveThread listener = new TransportReceiveThread(mqtt);
+                this.m_mqtt_thread_list.put(ep_name,listener);
+                listener.start();
+            } 
+            else {
+                // unable to connect!
+                this.errorLogger().critical("IoTEventHub: Unable to connect to MQTT for endpoint: " + ep_name + " type: " + ep_type);
+                this.remove(ep_name);
+            }
+        }
         else {
-            // unable to connect!
-            this.errorLogger().critical("IoTEventHub: Unable to connect to MQTT for endpoint: " + ep_name + " type: " + ep_type);
+            // already connected... just ignore
+            this.errorLogger().info("IoTEventHub: already have connection for " + ep_name + " (OK)");
         }
     }
 }
