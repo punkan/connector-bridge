@@ -426,7 +426,7 @@ public class MQTTTransport extends Transport {
                 // subscribe
                 this.m_subscribe_topics = list;
                 this.m_unsubscribe_topics = null;
-                //this.m_qoses = this.m_connection.subscribe(list);
+                this.m_qoses = this.m_connection.subscribe(list);
                 
                 // DEBUG
                 this.errorLogger().info("MQTTTransport: Subscribed to  " + list.length + " SUCCESSFULLY");

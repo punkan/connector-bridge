@@ -44,12 +44,10 @@ import org.fusesource.mqtt.client.Topic;
  */
 public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Transport.ReceiveListener, PeerInterface {
     public static int                               NUM_COAP_VERBS = 4;                                   // GET, PUT, POST, DELETE
+    public static int                               NUM_COAP_TOPICS = 1;                                  // # of MQTT Topics for CoAP verbs
     
     private String                                  m_iot_event_hub_observe_notification_topic = null;
-    private String                                  m_iot_event_hub_coap_cmd_topic_get = null;
-    private String                                  m_iot_event_hub_coap_cmd_topic_put = null;
-    private String                                  m_iot_event_hub_coap_cmd_topic_post = null;
-    private String                                  m_iot_event_hub_coap_cmd_topic_delete = null;
+    private String                                  m_iot_event_hub_coap_cmd_topic_base = null;
     
     private String                                  m_iot_event_hub_name = null;
     private String                                  m_iot_event_hub_password_template = null;
@@ -86,11 +84,8 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
         this.m_iot_event_hub_observe_notification_topic = this.orchestrator().preferences().valueOf("iot_event_hub_observe_notification_topic",this.m_suffix); 
         
         // starter kit can send CoAP commands back through mDS into the endpoint via these Topics... 
-        this.m_iot_event_hub_coap_cmd_topic_get = this.orchestrator().preferences().valueOf("iot_event_hub_coap_cmd_topic",this.m_suffix).replace("__COMMAND_TYPE__","get");
-        this.m_iot_event_hub_coap_cmd_topic_put = this.orchestrator().preferences().valueOf("iot_event_hub_coap_cmd_topic",this.m_suffix).replace("__COMMAND_TYPE__","put");
-        this.m_iot_event_hub_coap_cmd_topic_post = this.orchestrator().preferences().valueOf("iot_event_hub_coap_cmd_topic",this.m_suffix).replace("__COMMAND_TYPE__","post");
-        this.m_iot_event_hub_coap_cmd_topic_delete = this.orchestrator().preferences().valueOf("iot_event_hub_coap_cmd_topic",this.m_suffix).replace("__COMMAND_TYPE__","delete");
-                        
+        this.m_iot_event_hub_coap_cmd_topic_base = this.orchestrator().preferences().valueOf("iot_event_hub_coap_cmd_topic",this.m_suffix).replace("__COMMAND_TYPE__","#");
+                         
         // IoTEventHub Device Manager - will initialize and update our IoTEventHub bindings/metadata
         this.m_iot_event_hub_device_manager = new IoTEventHubDeviceManager(this.orchestrator().errorLogger(),this.orchestrator().preferences(),this.m_suffix,http,this.orchestrator());
                 
@@ -308,14 +303,11 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
     // create the endpoint IoTEventHub topic data
     private HashMap<String,Object> createEndpointTopicData(String ep_name,String ep_type) {
         HashMap<String,Object> topic_data = null;
-        if (this.m_iot_event_hub_coap_cmd_topic_get != null) {
-            Topic[] list = new Topic[NUM_COAP_VERBS];
-            String[] topic_string_list = new String[NUM_COAP_VERBS];
-            topic_string_list[0] = this.customizeTopic(this.m_iot_event_hub_coap_cmd_topic_get,ep_name,ep_type);
-            topic_string_list[1] = this.customizeTopic(this.m_iot_event_hub_coap_cmd_topic_put,ep_name,ep_type);
-            topic_string_list[2] = this.customizeTopic(this.m_iot_event_hub_coap_cmd_topic_post,ep_name,ep_type);
-            topic_string_list[3] = this.customizeTopic(this.m_iot_event_hub_coap_cmd_topic_delete,ep_name,ep_type);
-            for(int i=0;i<NUM_COAP_VERBS;++i) {
+        if (this.m_iot_event_hub_coap_cmd_topic_base != null) {
+            Topic[] list = new Topic[NUM_COAP_TOPICS];
+            String[] topic_string_list = new String[NUM_COAP_TOPICS];
+            topic_string_list[0] = this.customizeTopic(this.m_iot_event_hub_coap_cmd_topic_base,ep_name,ep_type);
+            for(int i=0;i<NUM_COAP_TOPICS;++i) {
                 list[i] = new Topic(topic_string_list[i],QoS.AT_LEAST_ONCE);
             }
             topic_data = new HashMap<>();
@@ -461,17 +453,12 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
     }
     
     private String getEndpointNameFromTopic(String topic) {
-        // format: iot-2/type/mbed/id/mbed-eth-observe/cmd/put/fmt/json
-        return this.getTopicElement(topic,4);
-    }
-    
-    private String getCoAPVerbFromTopic(String topic) {
-        // format: iot-2/type/mbed/id/mbed-eth-observe/cmd/put/fmt/json
-        return this.getTopicElement(topic, 6);
+        // format: devices/__EPNAME__/messages/devicebound/#
+        return this.getTopicElement(topic,1);
     }
     
     private String getCoAPURI(String message) {
-        // expected format: { "path":"/303/0/5850", "new_value":"0", "ep":"mbed-eth-observe" }
+        // expected format: { "path":"/303/0/5850", "new_value":"0", "ep":"mbed-eth-observe", "coap_verb": "get"}
         //this.errorLogger().info("getCoAPURI: payload: " + message);
         JSONParser parser = this.orchestrator().getJSONParser();
         Map parsed = parser.parseJson(message);
@@ -479,7 +466,7 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
     }
     
     private String getCoAPValue(String message) {
-        // expected format: { "path":"/303/0/5850", "new_value":"0", "ep":"mbed-eth-observe" }
+        // expected format: { "path":"/303/0/5850", "new_value":"0", "ep":"mbed-eth-observe" , "coap_verb": "get"}
         //this.errorLogger().info("getCoAPValue: payload: " + message);
         JSONParser parser = this.orchestrator().getJSONParser();
         Map parsed = parser.parseJson(message);
@@ -487,11 +474,19 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
     }
     
     private String getCoAPEndpointName(String message) {
-        // expected format: { "path":"/303/0/5850", "new_value":"0", "ep":"mbed-eth-observe" }
+        // expected format: { "path":"/303/0/5850", "new_value":"0", "ep":"mbed-eth-observe", "coap_verb": "get" }
         //this.errorLogger().info("getCoAPValue: payload: " + message);
         JSONParser parser = this.orchestrator().getJSONParser();
         Map parsed = parser.parseJson(message);
         return (String)parsed.get("ep");
+    }
+    
+    private String getCoAPVerb(String message) {
+        // expected format: { "path":"/303/0/5850", "new_value":"0", "ep":"mbed-eth-observe", "coap_verb": "get" }
+        //this.errorLogger().info("getCoAPValue: payload: " + message);
+        JSONParser parser = this.orchestrator().getJSONParser();
+        Map parsed = parser.parseJson(message);
+        return (String)parsed.get("coap_verb");
     }
     
     @Override
@@ -502,10 +497,10 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
         // parse the topic to get the endpoint and CoAP verb
         // format: iot-2/type/mbed/id/mbed-eth-observe/cmd/put/fmt/json
         String ep_name = this.getEndpointNameFromTopic(topic);
-        String coap_verb = this.getCoAPVerbFromTopic(topic);
         
         // pull the CoAP URI and Payload from the message itself... its JSON... 
-        // format: { "path":"/303/0/5850", "new_value":"0", "ep":"mbed-eth-observe" }
+        // format: { "path":"/303/0/5850", "new_value":"0", "ep":"mbed-eth-observe", "coap_verb": "get" }
+        String coap_verb = this.getCoAPVerb(message);
         String uri = this.getCoAPURI(message);
         String value = this.getCoAPValue(message);
         
