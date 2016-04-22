@@ -76,7 +76,7 @@ public class IoTEventHubDeviceManager extends BaseClass {
         this.m_iot_event_hub_add_device_json = this.preferences().valueOf("iot_event_hub_add_device_json",this.m_suffix);
         
         // IoTEventHub SAS Token (take out the qualifier if present...)
-        this.m_iot_event_hub_sas_token = this.preferences().valueOf("iot_event_hub_sas_token",this.m_suffix).replace("SharedAccessSignature ", "");
+        this.m_iot_event_hub_sas_token = this.preferences().valueOf("iot_event_hub_sas_token",this.m_suffix).replace("SharedAccessSignature ", "").trim();
     }
     
     // get the orchestrator
