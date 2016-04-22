@@ -184,10 +184,9 @@ public class MQTTTransport extends Transport {
      * @return
      */
     public boolean connect(String host, int port, String clientID,boolean clean_session) {
-        boolean connected = this.isConnected();
         int sleep_time = this.prefIntValue("mqtt_retry_sleep",this.m_suffix);
         int num_tries = this.prefIntValue("mqtt_connect_retries",this.m_suffix);
-        for(int i=0;i<num_tries && !connected; ++i) {
+        for(int i=0;i<num_tries && !this.m_connected; ++i) {
             try {                
                 // MQTT endpoint 
                 MQTT endpoint = new MQTT();
@@ -289,10 +288,10 @@ public class MQTTTransport extends Transport {
                         }
 
                         // check our connection status
-                        connected = this.m_connection.isConnected();
+                        this.m_connected = this.m_connection.isConnected();
 
                         // DEBUG
-                        if (connected == true) {
+                        if (this.m_connected == true) {
                             this.errorLogger().warning("MQTTTransport: Connection to: " + url + " successful");
                             this.m_connect_host = host;
                             this.m_connect_port = port;
@@ -334,11 +333,8 @@ public class MQTTTransport extends Transport {
                 this.m_connected = false;
             }
             
-            // record our status
-            this.m_connected = connected;
-            
             // if we have not yet connected... sleep a bit more and retry...
-            if (!this.isConnected() == false) {
+            if (this.m_connected == false) {
                 try {
                     Thread.sleep(sleep_time);
                 }
@@ -349,7 +345,7 @@ public class MQTTTransport extends Transport {
         }
         
         // return our connection status
-        return this.isConnected();
+        return this.m_connected;
     }
 
     /**
@@ -499,8 +495,12 @@ public class MQTTTransport extends Transport {
         boolean sent = false;
         if (this.isConnected() && message != null) {
             try {
-                //this.errorLogger().info("MQTT: Sending message: " + message + " Topic: " + topic);
+                // DEBUG
+                this.errorLogger().info("sendMessage: message: " + message + " Topic: " + topic);
                 this.m_connection.publish(topic, message.getBytes(), qos, false);
+                
+                // DEBUG
+                this.errorLogger().info("sendMessage(MQTT): message sent. SUCCESS");
                 sent = true;
             }
             catch (EOFException ex) {
@@ -531,9 +531,27 @@ public class MQTTTransport extends Transport {
                 this.errorLogger().critical("sendMessage: unable to send message: " + message, ex);
             }
         }
-        else {
+        else if (message != null) {
             // unable to send (not connected)
             this.errorLogger().warning("sendMessage: NOT CONNECTED. Unable to send message: " + message);
+            
+            // reset the connection
+            this.resetConnection();
+
+            // resend
+            if (this.isConnected()) {
+                this.errorLogger().info("sendMessage: retrying send() after EOF/reconnect....");
+                sent = this.sendMessage(topic,message,qos);
+            }
+            else {
+                // unable to send (not connected)
+                this.errorLogger().warning("sendMessage: NOT CONNECTED after EOF/reconnect. Unable to send message: " + message);
+            }
+        }
+        else {
+            // unable to send (empty message)
+            this.errorLogger().warning("sendMessage: EMPTY MESSAGE. Not sent (OK)");
+            sent = true;
         }
         
         // return the status

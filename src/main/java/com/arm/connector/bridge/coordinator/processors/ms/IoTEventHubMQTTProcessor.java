@@ -251,7 +251,7 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
     
     // OVERRIDE: process a received new registration for IoTEventHub
     @Override
-    protected void processRegistration(Map data,String key) {  
+    protected synchronized void processRegistration(Map data,String key) {  
         List endpoints = (List)data.get(key);
         for(int i=0;endpoints != null && i<endpoints.size();++i) {
             Map endpoint = (Map)endpoints.get(i);            
@@ -300,7 +300,7 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
                 this.errorLogger().info("processRegistration: subscribe() completed");
             }
             catch (Exception ex) {
-                this.errorLogger().warning("processRegistration: caught exception in registerNewDevice(): " + endpoint,ex); 
+                this.errorLogger().warning("processRegistration: caught exception in subscribe(): " + endpoint,ex); 
             }
         }
     }
@@ -658,22 +658,9 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
     }
     
     // validate the MQTT Connection
-    private synchronized boolean validateMQTTConnection(String ep_name,String ep_type) {
-        boolean connected = false;
-        
+    private synchronized boolean validateMQTTConnection(String ep_name,String ep_type) {        
         // see if we already have a connection for this endpoint...
-        if (this.mqtt(ep_name) != null) {
-            // see if we are connected
-            if (this.isConnected(ep_name) == false) {
-                // disconnect
-                this.disconnect(ep_name);
-                this.remove(ep_name);
-                
-                // create a new one
-                this.createAndStartMQTTForEndpoint(ep_name,ep_type);
-            }
-        }
-        else {
+        if (this.mqtt(ep_name) == null) {
             // create a MQTT connection for this endpoint... 
             this.createAndStartMQTTForEndpoint(ep_name,ep_type);
         }
@@ -684,7 +671,7 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
     
     // process new device registration
     @Override
-    protected Boolean registerNewDevice(Map message) {
+    protected synchronized Boolean registerNewDevice(Map message) {
         if (this.m_iot_event_hub_device_manager != null) {
             // create the device in IoTEventHub
             Boolean success = this.m_iot_event_hub_device_manager.registerNewDevice(message);
@@ -700,7 +687,7 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
     
     // process device de-registration
     @Override
-    protected Boolean deregisterDevice(String device) {
+    protected synchronized Boolean deregisterDevice(String device) {
         if (this.m_iot_event_hub_device_manager != null) {
             // DEBUG
             this.errorLogger().info("deregisterDevice(IoTEventHub): deregistering device: " + device);
@@ -749,10 +736,17 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
             this.errorLogger().info("IoTEventHub: connecting to MQTT for endpoint: " + ep_name + " type: " + ep_type + "...");
 
             // connect and start listening... 
-            if (this.connectMQTT(ep_name)) {
+            if (this.connectMQTT(ep_name) == true) {
                 // DEBUG
                 this.errorLogger().info("IoTEventHub: connected to MQTT. Creating and registering listener Thread for endpoint: " + ep_name + " type: " + ep_type);
 
+                // ensure we only have 1 thread/endpoint
+                if (this.m_mqtt_thread_list.get(ep_name) != null) {
+                    TransportReceiveThread listener = (TransportReceiveThread)this.m_mqtt_thread_list.get(ep_name);
+                    listener.disconnect();
+                    this.m_mqtt_thread_list.remove(ep_name);
+                }
+                
                 // create and start the listener
                 TransportReceiveThread listener = new TransportReceiveThread(mqtt);
                 this.m_mqtt_thread_list.put(ep_name,listener);
@@ -762,6 +756,13 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
                 // unable to connect!
                 this.errorLogger().critical("IoTEventHub: Unable to connect to MQTT for endpoint: " + ep_name + " type: " + ep_type);
                 this.remove(ep_name);
+                
+                // ensure we only have 1 thread/endpoint
+                if (this.m_mqtt_thread_list.get(ep_name) != null) {
+                    TransportReceiveThread listener = (TransportReceiveThread)this.m_mqtt_thread_list.get(ep_name);
+                    listener.disconnect();
+                    this.m_mqtt_thread_list.remove(ep_name);
+                }
             }
         }
         else {
