@@ -369,15 +369,7 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
     
     // subscribe to the IoTEventHub MQTT topics
     private void subscribe_to_topics(String ep_name,Topic topics[]) {
-        // (4/7/16): OFF
-        // this.mqtt().subscribe(topics);
-        
-        // (4/7/16): subscribe to each topic individually
-        for(int i=0;i<topics.length;++i) {
-            Topic[] single_topic = new Topic[1];
-            single_topic[0] = topics[i];
-            this.mqtt(ep_name).subscribe(single_topic);
-        }
+        this.mqtt(ep_name).subscribe(topics);
     }
     
     // does this endpoint already have registered subscriptions?

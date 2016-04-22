@@ -419,9 +419,16 @@ public class MQTTTransport extends Transport {
     public void subscribe(Topic[] list) {
         if (this.m_connection != null) {
             try {
+                // DEBUG
+                this.errorLogger().info("MQTTTransport: Subscribing to " + list.length + " topics...");
+                
+                // subscribe
                 this.m_subscribe_topics = list;
+                this.m_unsubscribe_topics = null;
                 this.m_qoses = this.m_connection.subscribe(list);
-                //this.errorLogger().info("MQTTTransport: Subscribed to TOPIC(s): " + list.length);
+                
+                // DEBUG
+                this.errorLogger().info("MQTTTransport: Subscribed to  " + list.length + " SUCCESSFULLY");
             }
             catch (Exception ex) {
                 if (this.retriesExceeded()) {
@@ -447,7 +454,8 @@ public class MQTTTransport extends Transport {
     public void unsubscribe(String[] list) {
         if (this.m_connection != null) {
             try {
-                this.m_unsubscribe_topics = null;
+                this.m_subscribe_topics = null;
+                this.m_unsubscribe_topics = list;
                 this.m_connection.unsubscribe(list);
                 //this.errorLogger().info("MQTTTransport: Unsubscribed from TOPIC(s): " + list.length);
             }
@@ -457,7 +465,7 @@ public class MQTTTransport extends Transport {
                     this.errorLogger().critical("MQTTTransport: unable to unsubscribe from topic (final)", ex);
                 }
                 else {
-                               // unable to subscribe to topic
+                    // unable to subscribe to topic
                     this.errorLogger().warning("MQTTTransport: unable to unsubscribe to topic (" + this.m_num_retries + " of " + this.m_max_retries + ")", ex);
 
                     // attempt reset
@@ -493,7 +501,7 @@ public class MQTTTransport extends Transport {
      */
     public boolean sendMessage(String topic,String message,QoS qos) {
         boolean sent = false;
-        if (this.isConnected() && message != null) {
+        if (this.m_connection.isConnected() == true && message != null) {
             try {
                 // DEBUG
                 this.errorLogger().info("sendMessage: message: " + message + " Topic: " + topic);
@@ -516,7 +524,7 @@ public class MQTTTransport extends Transport {
                     this.resetConnection();
 
                     // resend
-                    if (this.isConnected()) {
+                    if (this.m_connection.isConnected() == true) {
                         this.errorLogger().info("sendMessage: retrying send() after EOF/reconnect....");
                         sent = this.sendMessage(topic,message,qos);
                     }
@@ -539,7 +547,7 @@ public class MQTTTransport extends Transport {
             this.resetConnection();
 
             // resend
-            if (this.isConnected()) {
+            if (this.m_connection.isConnected() == true) {
                 this.errorLogger().info("sendMessage: retrying send() after EOF/reconnect....");
                 sent = this.sendMessage(topic,message,qos);
             }
