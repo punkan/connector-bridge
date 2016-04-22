@@ -345,9 +345,7 @@ public class IoTEventHubDeviceManager extends BaseClass {
     
     // create a MQTT Password for a given device
     public String createMQTTPassword(String device) {
-        // this must be generated per device created... 
-        
-        // XXX fixed for now...
-        return this.prefValue("iot_event_hub_tmp_device_sas",this.m_suffix);
+        // use the IoTEventHub SAS Token + the original signature qualifier
+        return this.m_iot_event_hub_auth_qualifier + " " + this.m_iot_event_hub_sas_token;
     }
 }
