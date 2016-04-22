@@ -197,16 +197,6 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
                 // no subscriptions - so process as a new registration
                 this.errorLogger().info("IoTEventHub : CoAP re-registration: no subscriptions.. processing as new registration...");
                 this.processRegistration(data,"reg-updates");
-                
-                /*
-                boolean do_register = this.unsubscribe((String)entry.get("ep"));
-                if (do_register == true) {
-                    this.processRegistration(data,"reg-updates");
-                }
-                else {
-                    this.subscribe((String)entry.get("ep"),(String)entry.get("ept"));
-                }
-                */
             }
             else {
                 // already subscribed (OK)
@@ -444,6 +434,7 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
         return unsubscribed;
     }
     
+    // retrieve a specific element from the topic structure
     private String getTopicElement(String topic,int index) {
         String element = "";
         String[] parsed = topic.split("/");
@@ -452,11 +443,13 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
         return element;
     }
     
+    // get the endpoint name from the MQTT topic
     private String getEndpointNameFromTopic(String topic) {
         // format: devices/__EPNAME__/messages/devicebound/#
         return this.getTopicElement(topic,1);
     }
     
+    // get the resource URI from the message
     private String getCoAPURI(String message) {
         // expected format: { "path":"/303/0/5850", "new_value":"0", "ep":"mbed-eth-observe", "coap_verb": "get"}
         //this.errorLogger().info("getCoAPURI: payload: " + message);
@@ -465,6 +458,7 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
         return (String)parsed.get("path");
     }
     
+    // get the resource value from the message
     private String getCoAPValue(String message) {
         // expected format: { "path":"/303/0/5850", "new_value":"0", "ep":"mbed-eth-observe" , "coap_verb": "get"}
         //this.errorLogger().info("getCoAPValue: payload: " + message);
@@ -473,6 +467,7 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
         return (String)parsed.get("new_value");
     }
     
+    // pull the EndpointName from the message
     private String getCoAPEndpointName(String message) {
         // expected format: { "path":"/303/0/5850", "new_value":"0", "ep":"mbed-eth-observe", "coap_verb": "get" }
         //this.errorLogger().info("getCoAPValue: payload: " + message);
@@ -481,6 +476,7 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
         return (String)parsed.get("ep");
     }
     
+    // pull the CoAP verb from the message
     private String getCoAPVerb(String message) {
         // expected format: { "path":"/303/0/5850", "new_value":"0", "ep":"mbed-eth-observe", "coap_verb": "get" }
         //this.errorLogger().info("getCoAPValue: payload: " + message);
@@ -489,23 +485,27 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
         return (String)parsed.get("coap_verb");
     }
     
+    // CoAP command handler - processes CoAP commands coming over MQTT channel
     @Override
     public void onMessageReceive(String topic, String message) {
         // DEBUG
         this.errorLogger().info("IoTEventHub(CoAP Command): Topic: " + topic + " message: " + message);
         
-        // parse the topic to get the endpoint and CoAP verb
-        // format: iot-2/type/mbed/id/mbed-eth-observe/cmd/put/fmt/json
+        // parse the topic to get the endpoint
+        // format: devices/__EPNAME__/messages/devicebound/#
         String ep_name = this.getEndpointNameFromTopic(topic);
         
         // pull the CoAP URI and Payload from the message itself... its JSON... 
         // format: { "path":"/303/0/5850", "new_value":"0", "ep":"mbed-eth-observe", "coap_verb": "get" }
-        String coap_verb = this.getCoAPVerb(message);
         String uri = this.getCoAPURI(message);
         String value = this.getCoAPValue(message);
         
+        // pull the CoAP verb from the message itself... its JSON...
+        // format: { "path":"/303/0/5850", "new_value":"0", "ep":"mbed-eth-observe", "coap_verb": "get" }
+        String coap_verb = this.getCoAPVerb(message);
+        
         // if the ep_name is wildcarded... get the endpoint name from the JSON payload
-        // format: { "path":"/303/0/5850", "new_value":"0", "ep":"mbed-eth-observe" }
+        // format: { "path":"/303/0/5850", "new_value":"0", "ep":"mbed-eth-observe", "coap_verb": "get" }
         if (ep_name == null || ep_name.length() <= 0 || ep_name.equalsIgnoreCase("+")) {
             ep_name = this.getCoAPEndpointName(message);
         }
