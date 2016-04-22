@@ -59,6 +59,7 @@ public class MQTTTransport extends Transport {
     private int m_max_retries = 10;
     private Topic[] m_subscribe_topics = null;
     private String[] m_unsubscribe_topics = null;
+    private boolean m_forced_ssl = false;
     
     /**
      * Instance Factory
@@ -425,7 +426,7 @@ public class MQTTTransport extends Transport {
                 // subscribe
                 this.m_subscribe_topics = list;
                 this.m_unsubscribe_topics = null;
-                this.m_qoses = this.m_connection.subscribe(list);
+                //this.m_qoses = this.m_connection.subscribe(list);
                 
                 // DEBUG
                 this.errorLogger().info("MQTTTransport: Subscribed to  " + list.length + " SUCCESSFULLY");
@@ -667,10 +668,22 @@ public class MQTTTransport extends Transport {
         }
     }
     
+    // force use of SSL
+    public void forceSSLUsage(boolean forced_ssl) {
+        this.m_forced_ssl = forced_ssl;
+    }
+    
     // setup the MQTT host URL
     private String setupHostURL(String host, int port) {
         if (this.m_host_url == null) {
             boolean secured = this.prefBoolValue("mqtt_use_ssl",this.m_suffix);
+            
+            // override
+            if (this.m_forced_ssl == true) {
+                // override
+                this.errorLogger().info("MQTT: OVERRIDE use of SSL enabled");
+                secured = this.m_forced_ssl;
+            }
             
             // PREFIX determination
             String prefix = "tcp://";

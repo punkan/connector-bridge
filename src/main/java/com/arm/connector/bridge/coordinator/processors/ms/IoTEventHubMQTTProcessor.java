@@ -720,6 +720,9 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
             mqtt.setClientID(ep_name);
             mqtt.setUsername(username);
             mqtt.setPassword(this.m_iot_event_hub_device_manager.createMQTTPassword(ep_name));
+            
+            // IoTEventHub only works with SSL... so force it
+            mqtt.forceSSLUsage(true);
 
             // add it to the list indexed by the endpoint name... not the clientID...
             this.addMQTTTransport(ep_name,mqtt);
