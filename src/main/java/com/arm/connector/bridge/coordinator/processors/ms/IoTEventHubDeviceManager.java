@@ -127,7 +127,7 @@ public class IoTEventHubDeviceManager extends BaseClass {
         String result = this.put(url,payload);
         
         // DEBUG
-        this.errorLogger().info("registerNewDevice: RESULT: " + result);
+        //this.errorLogger().info("registerNewDevice: RESULT: " + result);
         
         // return our status
         Boolean status = (result != null && result.length() > 0);
@@ -160,7 +160,7 @@ public class IoTEventHubDeviceManager extends BaseClass {
         String result = this.delete(url,etag);
         
         // DEBUG
-        this.errorLogger().info("deregisterDevice: RESULT: " + result);
+        //this.errorLogger().info("deregisterDevice: RESULT: " + result);
         
         // return our status
         Boolean status = (result != null && result.length() > 0);
@@ -186,7 +186,7 @@ public class IoTEventHubDeviceManager extends BaseClass {
         String result = this.get(url);
         
         // DEBUG
-        this.errorLogger().info("getDeviceDetails: RESULT: " + result);
+        //this.errorLogger().info("getDeviceDetails: RESULT: " + result);
         
         // return our status
         Boolean status = (result != null && result.length() > 0);
@@ -288,7 +288,7 @@ public class IoTEventHubDeviceManager extends BaseClass {
                     ep.put("json_record",json);
 
                     // DEBUG
-                    this.errorLogger().info("parseDeviceDetails for " + device + ": " + ep);
+                    //this.errorLogger().info("parseDeviceDetails for " + device + ": " + ep);
                 }
                 else {
                     // device is not found

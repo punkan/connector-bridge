@@ -390,10 +390,23 @@ public class MQTTTransport extends Transport {
             Thread.sleep(this.m_sleep_time);
             
             // reconnect()...
-            this.reconnect();
-            this.m_num_retries = 0;
-            if (this.m_subscribe_topics != null) {
-                this.subscribe(this.m_subscribe_topics);
+            if (this.reconnect() == true) {
+                // DEBUG
+                this.errorLogger().info("resetConnection: SUCCESS.");
+                    
+                // reconnected OK...
+                this.m_num_retries = 0;
+                
+                // resubscribe
+                if (this.m_subscribe_topics != null) {
+                    // DEBUG
+                    this.errorLogger().info("resetConnection: SUCCESS. re-subscribing...");
+                    this.subscribe(this.m_subscribe_topics);
+                }
+            }
+            else {
+                // DEBUG
+                this.errorLogger().info("resetConnection: FAILURE num_tries = " + this.m_num_retries);
             }
         }
         catch (Exception ex) {
@@ -410,9 +423,8 @@ public class MQTTTransport extends Transport {
     public void subscribe(Topic[] list) {
         if (this.m_connection != null) {
             try {
-                this.m_subscribe_topics = null;
-                this.m_qoses = this.m_connection.subscribe(list);
                 this.m_subscribe_topics = list;
+                this.m_qoses = this.m_connection.subscribe(list);
                 //this.errorLogger().info("MQTTTransport: Subscribed to TOPIC(s): " + list.length);
             }
             catch (Exception ex) {
@@ -426,9 +438,6 @@ public class MQTTTransport extends Transport {
 
                     // attempt reset
                     this.resetConnection();
-
-                    // recall
-                    this.subscribe(list);
                 }
             }
         }
@@ -444,7 +453,6 @@ public class MQTTTransport extends Transport {
             try {
                 this.m_unsubscribe_topics = null;
                 this.m_connection.unsubscribe(list);
-                this.m_unsubscribe_topics = list;
                 //this.errorLogger().info("MQTTTransport: Unsubscribed from TOPIC(s): " + list.length);
             }
             catch (Exception ex) {
@@ -485,12 +493,15 @@ public class MQTTTransport extends Transport {
      * @param topic
      * @param message
      * @param qos
+     * @return send status
      */
-    public void sendMessage(String topic,String message,QoS qos) {
+    public boolean sendMessage(String topic,String message,QoS qos) {
+        boolean sent = false;
         if (this.isConnected() && message != null) {
             try {
                 //this.errorLogger().info("MQTT: Sending message: " + message + " Topic: " + topic);
                 this.m_connection.publish(topic, message.getBytes(), qos, false);
+                sent = true;
             }
             catch (EOFException ex) {
                 if (this.retriesExceeded()) {
@@ -507,7 +518,11 @@ public class MQTTTransport extends Transport {
                     // resend
                     if (this.isConnected()) {
                         this.errorLogger().info("sendMessage: retrying send() after EOF/reconnect....");
-                        this.sendMessage(topic,message,qos);
+                        sent = this.sendMessage(topic,message,qos);
+                    }
+                    else {
+                        // unable to send (not connected)
+                        this.errorLogger().warning("sendMessage: NOT CONNECTED after EOF/reconnect. Unable to send message: " + message);
                     }
                 }
             }
@@ -516,6 +531,13 @@ public class MQTTTransport extends Transport {
                 this.errorLogger().critical("sendMessage: unable to send message: " + message, ex);
             }
         }
+        else {
+            // unable to send (not connected)
+            this.errorLogger().warning("sendMessage: NOT CONNECTED. Unable to send message: " + message);
+        }
+        
+        // return the status
+        return sent;
     }
     
     // get the next MQTT message

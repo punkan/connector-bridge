@@ -260,8 +260,22 @@ public class WatsonIoTMQTTProcessor extends GenericMQTTProcessor implements Tran
             //this.errorLogger().info("WatsonIoT: CoAP notification (JSON): " + notification);
             
             // send to WatsonIoT...
-            this.mqtt().sendMessage(this.customizeTopic(this.m_watson_iot_observe_notification_topic,ep_name,this.m_watson_iot_device_manager.getDeviceType(ep_name)),iotf_coap_json,QoS.AT_MOST_ONCE);           
-         }
+            if (this.mqtt() != null) {
+                boolean status = this.mqtt().sendMessage(this.customizeTopic(this.m_watson_iot_observe_notification_topic,ep_name,this.m_watson_iot_device_manager.getDeviceType(ep_name)),iotf_coap_json,QoS.AT_MOST_ONCE);            
+                if (status == true) {
+                    // not connected
+                    this.errorLogger().info("WatsonIoT: CoAP notification sent. SUCCESS");
+                }
+                else {
+                    // send failed
+                    this.errorLogger().warning("WatsonIoT: CoAP notification not sent. SEND FAILED");
+                }
+            }
+            else {
+                // not connected
+                this.errorLogger().warning("WatsonIoT: CoAP notification not sent. NOT CONNECTED");
+            }
+        }
     }
     
     // OVERRIDE: process a re-registration in WatsonIoT
@@ -270,12 +284,27 @@ public class WatsonIoTMQTTProcessor extends GenericMQTTProcessor implements Tran
         List notifications = (List)data.get("reg-updates");
         for(int i=0;notifications != null && i<notifications.size();++i) {
             Map entry = (Map)notifications.get(i);
-            this.errorLogger().info("WatsonIoT : CoAP re-registration: " + entry);
-            boolean do_register = this.unsubscribe((String)entry.get("ep"));
-            if (do_register == true) 
+            // DEBUG
+            // this.errorLogger().info("WatsonIoT: CoAP re-registration: " + entry);
+            if (this.hasSubscriptions((String)entry.get("ep")) == false) {
+                // no subscriptions - so process as a new registration
+                this.errorLogger().info("WatsonIoT : CoAP re-registration: no subscriptions.. processing as new registration...");
                 this.processRegistration(data,"reg-updates");
-            else 
-                this.subscribe((String)entry.get("ep"),(String)entry.get("ept"));
+                
+                /*
+                boolean do_register = this.unsubscribe((String)entry.get("ep"));
+                if (do_register == true) {
+                    this.processRegistration(data,"reg-updates");
+                }
+                else {
+                    this.subscribe((String)entry.get("ep"),(String)entry.get("ept"));
+                }
+                */
+            }
+            else {
+                // already subscribed (OK)
+                this.errorLogger().info("WatsonIoT : CoAP re-registration: already subscribed (OK)");
+            }
         }
     }
     
@@ -392,8 +421,10 @@ public class WatsonIoTMQTTProcessor extends GenericMQTTProcessor implements Tran
         return topic_data;
     }
     
+    // final customization of a MQTT Topic...
     private String customizeTopic(String topic,String ep_name,String ep_type) {
-        String cust_topic = topic.replace("__EPNAME__", ep_name).replace("__DEVICE_TYPE__", ep_type);
+        String cust_topic = topic.replace("__EPNAME__", ep_name);
+        if (ep_type != null) cust_topic = cust_topic.replace("__DEVICE_TYPE__", ep_type);
         this.errorLogger().info("WatsonIoT Customized Topic: " + cust_topic); 
         return cust_topic;
     }
@@ -444,8 +475,23 @@ public class WatsonIoTMQTTProcessor extends GenericMQTTProcessor implements Tran
         }
     }
     
+    // does this endpoint already have registered subscriptions?
+    private boolean hasSubscriptions(String ep_name) {
+        try {
+            if (this.m_watson_iot_endpoints.get(ep_name) != null) {
+                HashMap<String,Object> topic_data = (HashMap<String,Object>)this.m_watson_iot_endpoints.get(ep_name);
+                if (topic_data != null && topic_data.size() > 0) {
+                    return true;
+                }
+            }
+        }
+        catch (Exception ex) {
+            //silent
+        }
+        return false;
+    }
+    
     // register topics for CoAP commands
-    @SuppressWarnings("empty-statement")
     private void subscribe(String ep_name,String ep_type) {
         if (ep_name != null) {
             // DEBUG
@@ -596,7 +642,21 @@ public class WatsonIoTMQTTProcessor extends GenericMQTTProcessor implements Tran
                 this.errorLogger().info("WatsonIoT(CoAP Command): Sending Observation(GET): " + observation);
                 
                 // send the observation (GET reply)...
-                this.mqtt().sendMessage(this.customizeTopic(this.m_watson_iot_observe_notification_topic,ep_name,this.m_watson_iot_device_manager.getDeviceType(ep_name)),observation,QoS.AT_MOST_ONCE); 
+                if (this.mqtt() != null) {
+                    boolean status = this.mqtt().sendMessage(this.customizeTopic(this.m_watson_iot_observe_notification_topic,ep_name,this.m_watson_iot_device_manager.getDeviceType(ep_name)),observation,QoS.AT_MOST_ONCE); 
+                    if (status == true) {
+                        // not connected
+                        this.errorLogger().info("WatsonIoT(CoAP Command): CoAP observation(get) sent. SUCCESS");
+                    }
+                    else {
+                        // send failed
+                        this.errorLogger().warning("WatsonIoT(CoAP Command): CoAP observation(get) not sent. SEND FAILED");
+                    }
+                }
+                else {
+                    // not connected
+                    this.errorLogger().warning("WatsonIoT(CoAP Command): CoAP observation(get) not sent. NOT CONNECTED");
+                }
             }
         }
     }

@@ -83,7 +83,7 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
         this.m_mqtt_host = this.orchestrator().preferences().valueOf("iot_event_hub_mqtt_ip_address",this.m_suffix).replace("__IOT_EVENT_HUB__",this.m_iot_event_hub_name);
                 
         // starter kit supports observation notifications
-        this.m_iot_event_hub_observe_notification_topic = this.orchestrator().preferences().valueOf("iot_event_hub_observe_notification_topic",this.m_suffix).replace("__EVENT_TYPE__","observation"); 
+        this.m_iot_event_hub_observe_notification_topic = this.orchestrator().preferences().valueOf("iot_event_hub_observe_notification_topic",this.m_suffix); 
         
         // starter kit can send CoAP commands back through mDS into the endpoint via these Topics... 
         this.m_iot_event_hub_coap_cmd_topic_get = this.orchestrator().preferences().valueOf("iot_event_hub_coap_cmd_topic",this.m_suffix).replace("__COMMAND_TYPE__","get");
@@ -173,7 +173,19 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
             
             // send to IoTEventHub...
             if (this.mqtt(ep_name) != null) {
-                this.mqtt(ep_name).sendMessage(this.customizeTopic(this.m_iot_event_hub_observe_notification_topic,ep_name,null),iot_event_hub_coap_json,QoS.AT_MOST_ONCE);           
+                boolean status = this.mqtt(ep_name).sendMessage(this.customizeTopic(this.m_iot_event_hub_observe_notification_topic,ep_name,null),iot_event_hub_coap_json,QoS.AT_MOST_ONCE);           
+                if (status == true) {
+                    // not connected
+                    this.errorLogger().info("IoTEventHub: CoAP notification sent. SUCCESS");
+                }
+                else {
+                    // send failed
+                    this.errorLogger().warning("IoTEventHub: CoAP notification not sent. SEND FAILED");
+                }
+            }
+            else {
+                // not connected
+                this.errorLogger().warning("IoTEventHub: CoAP notification not sent. NOT CONNECTED");
             }
         }
     }
@@ -184,12 +196,27 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
         List notifications = (List)data.get("reg-updates");
         for(int i=0;notifications != null && i<notifications.size();++i) {
             Map entry = (Map)notifications.get(i);
-            this.errorLogger().info("IoTEventHub : CoAP re-registration: " + entry);
-            boolean do_register = this.unsubscribe((String)entry.get("ep"));
-            if (do_register == true) 
+            // DEBUG
+            // this.errorLogger().info("IoTEventHub : CoAP re-registration: " + entry);
+            if (this.hasSubscriptions((String)entry.get("ep")) == false) {
+                // no subscriptions - so process as a new registration
+                this.errorLogger().info("IoTEventHub : CoAP re-registration: no subscriptions.. processing as new registration...");
                 this.processRegistration(data,"reg-updates");
-            else 
-                this.subscribe((String)entry.get("ep"),(String)entry.get("ept"));
+                
+                /*
+                boolean do_register = this.unsubscribe((String)entry.get("ep"));
+                if (do_register == true) {
+                    this.processRegistration(data,"reg-updates");
+                }
+                else {
+                    this.subscribe((String)entry.get("ep"),(String)entry.get("ept"));
+                }
+                */
+            }
+            else {
+                // already subscribed (OK)
+                this.errorLogger().info("IoTEventHub : CoAP re-registration: already subscribed (OK)");
+            }
         }
     }
     
@@ -298,8 +325,10 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
         return topic_data;
     }
     
+    // final customization of a MQTT Topic...
     private String customizeTopic(String topic,String ep_name,String ep_type) {
         String cust_topic = topic.replace("__EPNAME__", ep_name);
+        if (ep_type != null) cust_topic = cust_topic.replace("__DEVICE_TYPE__", ep_type);
         this.errorLogger().info("IoTEventHub Customized Topic: " + cust_topic); 
         return cust_topic;
     }
@@ -351,8 +380,23 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
         }
     }
     
+    // does this endpoint already have registered subscriptions?
+    private boolean hasSubscriptions(String ep_name) {
+        try {
+            if (this.m_iot_event_hub_endpoints.get(ep_name) != null) {
+                HashMap<String,Object> topic_data = (HashMap<String,Object>)this.m_iot_event_hub_endpoints.get(ep_name);
+                if (topic_data != null && topic_data.size() > 0) {
+                    return true;
+                }
+            }
+        }
+        catch (Exception ex) {
+            //silent
+        }
+        return false;
+    }
+    
     // register topics for CoAP commands
-    @SuppressWarnings("empty-statement")
     private void subscribe(String ep_name,String ep_type) {
         if (ep_name != null && this.validateMQTTConnection(ep_name,ep_type)) {
             // DEBUG
@@ -361,7 +405,8 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
                 HashMap<String,Object> topic_data = this.createEndpointTopicData(ep_name,ep_type);
                 if (topic_data != null) {
                     // get,put,post,delete enablement
-                    this.m_iot_event_hub_endpoints.put(ep_name, topic_data);
+                    this.m_iot_event_hub_endpoints.remove(ep_name);
+                    this.m_iot_event_hub_endpoints.put(ep_name,topic_data);
                     this.subscribe_to_topics(ep_name,(Topic[])topic_data.get("topic_list"));
                 }
                 else {
@@ -509,7 +554,19 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
                 
                 // send the observation (GET reply)...
                 if (this.mqtt(ep_name) != null) {
-                    this.mqtt(ep_name).sendMessage(this.customizeTopic(this.m_iot_event_hub_observe_notification_topic,ep_name,null),observation,QoS.AT_MOST_ONCE); 
+                    boolean status = this.mqtt(ep_name).sendMessage(this.customizeTopic(this.m_iot_event_hub_observe_notification_topic,ep_name,null),observation,QoS.AT_MOST_ONCE); 
+                    if (status == true) {
+                        // not connected
+                        this.errorLogger().info("IoTEventHub(CoAP Command): CoAP observation(get) sent. SUCCESS");
+                    }
+                    else {
+                        // send failed
+                        this.errorLogger().warning("IoTEventHub(CoAP Command): CoAP observation(get) not sent. SEND FAILED");
+                    }
+                }
+                else {
+                    // not connected
+                    this.errorLogger().warning("IoTEventHub(CoAP Command): CoAP observation(get) not sent. NOT CONNECTED");
                 }
             }
         }
@@ -601,7 +658,7 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
     }
     
     // validate the MQTT Connection
-    private boolean validateMQTTConnection(String ep_name,String ep_type) {
+    private synchronized boolean validateMQTTConnection(String ep_name,String ep_type) {
         boolean connected = false;
         
         // see if we already have a connection for this endpoint...
