@@ -163,7 +163,7 @@ public class IoTEventHubDeviceManager extends BaseClass {
         //this.errorLogger().info("deregisterDevice: RESULT: " + result);
         
         // return our status
-        Boolean status = (result != null && result.length() > 0);
+        Boolean status = (result != null && result.length() >= 0);
         
         // remove the endpoint details
         this.m_endpoint_details.remove(device);

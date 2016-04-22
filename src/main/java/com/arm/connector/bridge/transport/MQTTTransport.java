@@ -631,6 +631,9 @@ public class MQTTTransport extends Transport {
     
     // Disconnect from MQTT broker
     public void disconnect(boolean clear_creds) {
+        // DEBUG
+        this.errorLogger().info("MQTT: disconnecting from MQTT Broker.. ");
+        
         // disconnect... 
         try {
             if (this.m_connection != null) {
@@ -639,8 +642,11 @@ public class MQTTTransport extends Transport {
         }
         catch (Exception ex) {
             // unable to send
-            this.errorLogger().critical("disconnect: exception during disconnect(). ", ex);
+            this.errorLogger().warning("MQTT: exception during disconnect(). ", ex);
         }
+        
+        // DEBUG
+        this.errorLogger().info("MQTT: disconnected from MQTT Broker. Cleaning up...");
         
         // clean up...
         super.disconnect();
