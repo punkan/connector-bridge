@@ -25,7 +25,7 @@ package com.arm.connector.bridge.coordinator.processors.ibm;
 
 import com.arm.connector.bridge.coordinator.processors.arm.GenericMQTTProcessor;
 import com.arm.connector.bridge.coordinator.Orchestrator;
-import com.arm.connector.bridge.coordinator.processors.core.basePeerProcessorFactory;
+import com.arm.connector.bridge.coordinator.processors.core.BasePeerProcessorFactory;
 import com.arm.connector.bridge.coordinator.processors.interfaces.PeerInterface;
 import com.arm.connector.bridge.transport.HttpTransport;
 import com.arm.connector.bridge.transport.MQTTTransport;
@@ -36,7 +36,7 @@ import java.util.ArrayList;
  * IBM Peer Processor Manager: Factory for initiating a peer processor for IBM Cloud Services
  * @author Doug Anson
  */
-public class ibmPeerProcessorFactory extends basePeerProcessorFactory implements Transport.ReceiveListener, PeerInterface {  
+public class ibmPeerProcessorFactory extends BasePeerProcessorFactory implements Transport.ReceiveListener, PeerInterface {  
     // Factory method for initializing the IBM MQTT collection orchestrator
     public static ibmPeerProcessorFactory createPeerProcessor(Orchestrator manager,HttpTransport http) {
         // create me

@@ -25,7 +25,7 @@ package com.arm.connector.bridge.coordinator.processors.ms;
 
 import com.arm.connector.bridge.coordinator.processors.arm.GenericMQTTProcessor;
 import com.arm.connector.bridge.coordinator.Orchestrator;
-import com.arm.connector.bridge.coordinator.processors.core.basePeerProcessorFactory;
+import com.arm.connector.bridge.coordinator.processors.core.BasePeerProcessorFactory;
 import com.arm.connector.bridge.coordinator.processors.interfaces.PeerInterface;
 import com.arm.connector.bridge.transport.HttpTransport;
 import com.arm.connector.bridge.core.Transport;
@@ -35,7 +35,7 @@ import java.util.ArrayList;
  * MS IoTEventHub Peer Processor Manager: Factory for initiating a peer processor for MS IoTEventHub Cloud Services
  * @author Doug Anson
  */
-public class msPeerProcessorFactory extends basePeerProcessorFactory implements Transport.ReceiveListener, PeerInterface {     
+public class msPeerProcessorFactory extends BasePeerProcessorFactory implements Transport.ReceiveListener, PeerInterface {     
     // Factory method for initializing the MS IoTEventHub MQTT collection orchestrator
     public static msPeerProcessorFactory createPeerProcessor(Orchestrator manager,HttpTransport http) {
         // create me

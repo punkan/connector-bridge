@@ -1,5 +1,5 @@
 /**
- * @file    basePeerProcessorManager.java
+ * @file    BasePeerProcessorManager.java
  * @brief   Base Class Peer Processor Manager
  * @author  Doug Anson
  * @version 1.0
@@ -35,13 +35,13 @@ import java.util.Map;
  * Base Peer Processor Manager: Manages a collection of MQTT-based processors (including a generic one) for MS IoTEventHub Services
  * @author Doug Anson
  */
-public class basePeerProcessorFactory extends Processor implements Transport.ReceiveListener, PeerInterface { 
+public class BasePeerProcessorFactory extends Processor implements Transport.ReceiveListener, PeerInterface { 
     protected ArrayList<GenericMQTTProcessor> m_mqtt_list = null;
     protected HttpTransport m_http = null;
     protected int m_default_processor = 0;
     
     // constructor
-    public basePeerProcessorFactory(Orchestrator manager,HttpTransport http) {
+    public BasePeerProcessorFactory(Orchestrator manager,HttpTransport http) {
         super(manager,null);
         this.m_http = http;
         this.m_mqtt_list = new ArrayList<>();
