@@ -631,8 +631,7 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
         String coap_json_stripped = this.stripArrayChars(coap_raw_json);
 
         // encapsulate into a coap/device packet...
-        // XXX
-        String iot_event_hub_coap_json = null;
+        String iot_event_hub_coap_json = coap_json_stripped;
 
         // DEBUG
         this.errorLogger().info("IoTEventHub: CoAP notification(GET REPLY): " + iot_event_hub_coap_json);
