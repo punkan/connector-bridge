@@ -32,12 +32,7 @@ import com.arm.connector.bridge.transport.MQTTTransport;
 import com.arm.connector.bridge.core.Transport;
 import com.arm.connector.bridge.core.TransportReceiveThread;
 import com.arm.connector.bridge.json.JSONParser;
-import java.io.UnsupportedEncodingException;
-import java.net.URL;
-import java.net.URLDecoder;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import org.fusesource.mqtt.client.QoS;
@@ -50,6 +45,9 @@ import org.fusesource.mqtt.client.Topic;
 public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Transport.ReceiveListener, PeerInterface {
     public static int                               NUM_COAP_VERBS = 4;                                   // GET, PUT, POST, DELETE
     public static int                               NUM_COAP_TOPICS = 1;                                  // # of MQTT Topics for CoAP verbs
+    
+    private String                                  m_observation_type = "observation";
+    private String                                  m_async_response_type = "cmd-response";
     
     private String                                  m_iot_event_hub_observe_notification_topic = null;
     private String                                  m_iot_event_hub_coap_cmd_topic_base = null;
@@ -86,7 +84,7 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
         this.m_mqtt_host = this.orchestrator().preferences().valueOf("iot_event_hub_mqtt_ip_address",this.m_suffix).replace("__IOT_EVENT_HUB__",this.m_iot_event_hub_name);
                 
         // starter kit supports observation notifications
-        this.m_iot_event_hub_observe_notification_topic = this.orchestrator().preferences().valueOf("iot_event_hub_observe_notification_topic",this.m_suffix); 
+        this.m_iot_event_hub_observe_notification_topic = this.orchestrator().preferences().valueOf("iot_event_hub_observe_notification_topic",this.m_suffix) + this.m_observation_type; 
         
         // starter kit can send CoAP commands back through mDS into the endpoint via these Topics... 
         this.m_iot_event_hub_coap_cmd_topic_base = this.orchestrator().preferences().valueOf("iot_event_hub_coap_cmd_topic",this.m_suffix).replace("__COMMAND_TYPE__","#");
@@ -99,6 +97,12 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
                              
         // initialize our MQTT transport list
         this.initMQTTTransportList();
+    }
+    
+    // get our defaulted reply topic
+    @Override
+    public String getReplyTopic(String ep_name,String ep_type,String def){
+        return this.customizeTopic(this.m_iot_event_hub_observe_notification_topic,ep_name,ep_type).replace(this.m_observation_type, this.m_async_response_type);
     }
  
     // we have to override the creation of the authentication hash.. it has to be dependent on a given endpoint name
@@ -265,13 +269,13 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
                 Map resource = (Map)resources.get(j); 
                 
                 // re-subscribe
-                if (this.m_subscriptions.containsSubscription(this.m_mds_domain,(String)endpoint.get("ep"),(String)resource.get("path"))) {
+                if (this.m_subscriptions.containsSubscription(this.m_mds_domain,(String)endpoint.get("ep"),(String)endpoint.get("ept"),(String)resource.get("path"))) {
                     // re-subscribe to this resource
                     this.orchestrator().subscribeToEndpointResource((String)endpoint.get("ep"),(String)resource.get("path"),false);
                     
                     // SYNC: here we dont have to worry about Sync options - we simply dispatch the subscription to mDS and setup for it...
-                    this.m_subscriptions.removeSubscription(this.m_mds_domain,(String)endpoint.get("ep"),(String)resource.get("path"));
-                    this.m_subscriptions.addSubscription(this.m_mds_domain,(String)endpoint.get("ep"),(String)resource.get("path"));
+                    this.m_subscriptions.removeSubscription(this.m_mds_domain,(String)endpoint.get("ep"),(String)endpoint.get("ept"),(String)resource.get("path"));
+                    this.m_subscriptions.addSubscription(this.m_mds_domain,(String)endpoint.get("ep"),(String)endpoint.get("ept"),(String)resource.get("path"));
                 }
                 
                 // auto-subscribe
@@ -280,8 +284,8 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
                     this.orchestrator().subscribeToEndpointResource((String)endpoint.get("ep"),(String)resource.get("path"),false);
                     
                     // SYNC: here we dont have to worry about Sync options - we simply dispatch the subscription to mDS and setup for it...
-                    this.m_subscriptions.removeSubscription(this.m_mds_domain,(String)endpoint.get("ep"),(String)resource.get("path"));
-                    this.m_subscriptions.addSubscription(this.m_mds_domain,(String)endpoint.get("ep"),(String)resource.get("path"));
+                    this.m_subscriptions.removeSubscription(this.m_mds_domain,(String)endpoint.get("ep"),(String)endpoint.get("ept"),(String)resource.get("path"));
+                    this.m_subscriptions.addSubscription(this.m_mds_domain,(String)endpoint.get("ep"),(String)endpoint.get("ept"),(String)resource.get("path"));
                 }
             }    
             
@@ -571,7 +575,7 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
             if (this.isAsyncResponse(response) == true) {
                 if (coap_verb.equalsIgnoreCase("get") == true) {
                     // its an AsyncResponse.. so record it...
-                    this.recordAsyncResponse(response,coap_verb,this.mqtt(ep_name),this,topic,message,uri,ep_name);
+                    this.recordAsyncResponse(response,coap_verb,this.mqtt(ep_name),this,topic,message,ep_name,uri);
                 }
                 else {
                     // we ignore AsyncResponses to PUT,POST,DELETE
@@ -645,43 +649,29 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
                 // DEBUG
                 this.errorLogger().info("IoTEventHub: CoAP AsyncResponse for GET: " + async_response);
                 
-                // get the Map of the response
-                Map response_map = (Map)async_response.get("response_map");
-                
-                // Convert back to String, then to List
-                String t = this.orchestrator().getJSONGenerator().generateJson(response_map);
-                List async_responses = (List)this.orchestrator().getJSONParser().parseJson(t);
-                for(int i=0;async_responses != null && i<async_responses.size();++i) {
-                    // get the ith entry from the list
-                    Map response = (Map)async_responses.get(i);
-                    
-                    // DEBUG
-                    this.errorLogger().info("IoTEventHub: CoAP response(" + i + "): " + response);
-                    
-                    // get the payload from the ith entry
-                    String payload = (String)response.get("payload");
-                    if (payload != null) {
-                        // trim 
-                        payload = payload.trim();
-                        
-                        // parse if present
-                        if (payload.length() > 0) {
-                            // Base64 decode
-                            String value = Utils.decodeCoAPPayload(payload);
-                            
-                            // build out the response
-                            String uri = (String)async_response.get("uri");
-                            String ep_name = (String)async_response.get("ep_name");
-                            
-                            // build out the 
-                            String message = this.createObservation(verb, ep_name, uri, value);
-                            
-                            // DEBUG
-                            this.errorLogger().info("IoTEventHub: Created(" + verb + ") GET Observation: " + message);
-                            
-                            // return the message
-                            return message;
-                        }
+                // get the payload from the ith entry
+                String payload = (String)async_response.get("payload");
+                if (payload != null) {
+                    // trim 
+                    payload = payload.trim();
+
+                    // parse if present
+                    if (payload.length() > 0) {
+                        // Base64 decode
+                        String value = Utils.decodeCoAPPayload(payload);
+
+                        // build out the response
+                        String uri = this.getURIFromAsyncID((String)async_response.get("id"));
+                        String ep_name = this.getEndpointNameFromAsyncID((String)async_response.get("id"));
+
+                        // build out the 
+                        String message = this.createObservation(verb, ep_name, uri, value);
+
+                        // DEBUG
+                        this.errorLogger().info("IoTEventHub: Created(" + verb + ") observation: " + message);
+
+                        // return the message
+                        return message;
                     }
                 }
             }

@@ -36,8 +36,8 @@ import java.util.Map;
  * @author Doug Anson
  */
 public class AsyncResponseManager {
-    private HashMap<String,HashMap<String,Object>> m_responses;
-    private Orchestrator                       m_manager;
+    private HashMap<String,HashMap<String,Object>>  m_responses;
+    private Orchestrator                            m_manager;
     
     public AsyncResponseManager(Orchestrator manager) {
         this.m_manager = manager;
@@ -65,7 +65,7 @@ public class AsyncResponseManager {
     }
     
     // record an AsyncResponse
-    public void recordAsyncResponse(String response,String coap_verb,MQTTTransport mqtt,GenericMQTTProcessor proc,String response_topic, String message, String ep_name, String uri) {
+    public void recordAsyncResponse(String response,String coap_verb,MQTTTransport mqtt,GenericMQTTProcessor proc,String response_topic,String reply_topic,String message, String ep_name, String uri) {
         // create a new AsyncResponse record
         HashMap<String,Object> record = new HashMap<>();
        
@@ -75,6 +75,7 @@ public class AsyncResponseManager {
         record.put("mqtt",mqtt);
         record.put("proc",proc);
         record.put("response_topic",response_topic);
+        record.put("reply_topic",reply_topic);
         record.put("message",message);
         record.put("ep_name",ep_name);
         record.put("uri",uri);
@@ -113,11 +114,17 @@ public class AsyncResponseManager {
             // construct the reply message value
             String reply = proc.formatAsyncResponseAsReply(response,verb);
             if (reply != null) {
+                // GETs come back over as observations...
+                String target_topic = response_topic;
+                if (verb.equalsIgnoreCase("get") == true && record.get("reply_topic") != null) {
+                    target_topic = (String)record.get("reply_topic");
+                }
+                
                 // DEBUG
-                this.errorLogger().info("processAsyncResponse: sending reply(" + verb + ") to AsyncResponse: ID: " + id + " Topic: " + response_topic + " Message: " + reply);
+                this.errorLogger().info("processAsyncResponse: sending reply(" + verb + ") to AsyncResponse: ID: " + id + " Topic: " + target_topic + " Message: " + reply);
 
                 // send the reply...
-                mqtt.sendMessage(response_topic, reply);
+                mqtt.sendMessage(target_topic, reply);
             }
             else {
                 // DEBUG

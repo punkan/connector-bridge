@@ -158,6 +158,11 @@ public class GenericMQTTProcessor extends Processor implements Transport.Receive
         return this.m_async_response_manager;
     }
     
+    // get our defaulted reply topic
+    public String getReplyTopic(String ep_name,String ep_type,String def) {
+        return def;
+    }
+    
     /**
      * add a MQTT transport
      * @param clientID
@@ -314,10 +319,10 @@ public class GenericMQTTProcessor extends Processor implements Transport.Receive
                 Map resource = (Map)resources.get(j); 
                 if (this.isObservableResource(resource)) {
                     this.errorLogger().info("MQTTProcessor(MQTT-STD) : CoAP re-registration: " + endpoint + " Resource: " + resource);
-                    if (this.m_subscriptions.containsSubscription(this.m_mds_domain,(String)endpoint.get("ep"),(String)resource.get("path")) == false) {
+                    if (this.m_subscriptions.containsSubscription(this.m_mds_domain,(String)endpoint.get("ep"),(String)endpoint.get("ept"),(String)resource.get("path")) == false) {
                         this.errorLogger().info("MQTTProcessor(MQTT-STD) : CoAP re-registering OBS resources for: " + endpoint + " Resource: " + resource);
                         this.processRegistration(data,"reg-updates");
-                        this.m_subscriptions.addSubscription(this.m_mds_domain,(String)endpoint.get("ep"),(String)resource.get("path"));
+                        this.m_subscriptions.addSubscription(this.m_mds_domain,(String)endpoint.get("ep"),(String)endpoint.get("ept"),(String)resource.get("path"));
                     }
                 }
             }
@@ -380,21 +385,21 @@ public class GenericMQTTProcessor extends Processor implements Transport.Receive
             List resources = (List)endpoint.get("resources");
             for(int j=0;resources != null && j<resources.size();++j) {
                 Map resource = (Map)resources.get(j); 
-                if (this.m_subscriptions.containsSubscription(this.m_mds_domain,(String)endpoint.get("ep"),(String)resource.get("path"))) {
+                if (this.m_subscriptions.containsSubscription(this.m_mds_domain,(String)endpoint.get("ep"),(String)endpoint.get("ept"),(String)resource.get("path"))) {
                     // re-subscribe to this resource
                     this.orchestrator().subscribeToEndpointResource((String)endpoint.get("ep"),(String)resource.get("path"),false);
                     
                     // SYNC: here we dont have to worry about Sync options - we simply dispatch the subscription to mDS and setup for it...
-                    this.m_subscriptions.removeSubscription(this.m_mds_domain,(String)endpoint.get("ep"),(String)resource.get("path"));
-                    this.m_subscriptions.addSubscription(this.m_mds_domain,(String)endpoint.get("ep"),(String)resource.get("path"));
+                    this.m_subscriptions.removeSubscription(this.m_mds_domain,(String)endpoint.get("ep"),(String)endpoint.get("ept"),(String)resource.get("path"));
+                    this.m_subscriptions.addSubscription(this.m_mds_domain,(String)endpoint.get("ep"),(String)endpoint.get("ept"),(String)resource.get("path"));
                 }
                 else if (this.isObservableResource(resource) && this.m_auto_subscribe_to_obs_resources == true) {
                     // auto-subscribe to observable resources... if enabled.
                     this.orchestrator().subscribeToEndpointResource((String)endpoint.get("ep"),(String)resource.get("path"),false);
                     
                     // SYNC: here we dont have to worry about Sync options - we simply dispatch the subscription to mDS and setup for it...
-                    this.m_subscriptions.removeSubscription(this.m_mds_domain,(String)endpoint.get("ep"),(String)resource.get("path"));
-                    this.m_subscriptions.addSubscription(this.m_mds_domain,(String)endpoint.get("ep"),(String)resource.get("path"));
+                    this.m_subscriptions.removeSubscription(this.m_mds_domain,(String)endpoint.get("ep"),(String)endpoint.get("ept"),(String)resource.get("path"));
+                    this.m_subscriptions.addSubscription(this.m_mds_domain,(String)endpoint.get("ep"),(String)endpoint.get("ept"),(String)resource.get("path"));
                 }
             }            
         }
@@ -496,8 +501,9 @@ public class GenericMQTTProcessor extends Processor implements Transport.Receive
                 // remove from the subscription list
                 //this.errorLogger().info("processMessage(MQTT): TOPIC: " + topic);
                 String endpoint = this.getElementFromTopic(topic,4);                        // topic position SENSITIVE
+                String ep_type = this.getElementFromTopic(topic,2);                         // topic position SENSITIVE
                 String uri = this.buildURIFromTopic(topic,endpoint);
-                this.m_subscriptions.removeSubscription(this.m_mds_domain,endpoint,uri);
+                this.m_subscriptions.removeSubscription(this.m_mds_domain,endpoint,ep_type,uri);
             }
             else {
                 // Subscribe
@@ -505,10 +511,15 @@ public class GenericMQTTProcessor extends Processor implements Transport.Receive
                 json = this.orchestrator().subscribeToEndpointResource(this.stripRequestTAG(topic),options,true);
                 
                 // add to the subscription list
-                //this.errorLogger().info("processMessage(MQTT): TOPIC: " + topic);
                 String endpoint = this.getElementFromTopic(topic,4);                        // topic position SENSITIVE
+                String ep_type = this.getElementFromTopic(topic,2);                         // topic position SENSITIVE
                 String uri = this.buildURIFromTopic(topic,endpoint);
-                this.m_subscriptions.addSubscription(this.m_mds_domain,endpoint,uri);
+                
+                // DEBUG
+                this.errorLogger().info("processMessage(MQTT-STD): adding subscription TOPIC: " + topic + " endpoint: " + endpoint + " type: " + ep_type + " uri: " + uri);
+                
+                // add the subscription
+                this.m_subscriptions.addSubscription(this.m_mds_domain,endpoint,ep_type,uri);
             }
             
             if (json != null && json.length() > 0) {                
@@ -658,7 +669,7 @@ public class GenericMQTTProcessor extends Processor implements Transport.Receive
     
     // record AsyncResponses
     protected void recordAsyncResponse(String response,String coap_verb,MQTTTransport mqtt,GenericMQTTProcessor proc,String response_topic, String message, String ep_name, String uri) {
-        this.asyncResponseManager().recordAsyncResponse(response, coap_verb, mqtt, proc, response_topic, message, ep_name, uri);
+        this.asyncResponseManager().recordAsyncResponse(response, coap_verb, mqtt, proc, response_topic, this.getReplyTopic(ep_name,this.m_subscriptions.endpointTypeFromEndpointName(ep_name),response_topic), message, ep_name, uri);
     }
     
     // process AsyncResponses
@@ -668,6 +679,64 @@ public class GenericMQTTProcessor extends Processor implements Transport.Receive
         for(int i=0;responses != null && i<responses.size();++i) {
             this.asyncResponseManager().processAsyncResponse((Map)responses.get(i));
         }
+    }
+    
+    // split AsyncID
+    private String[] splitAsyncID(String id) {
+        String[] parts = null;
+        
+        if (id != null && id.length() > 0) {
+            // copy the string
+            String tmp = new String(id);
+            
+            // loop through and remove key delimiters
+            tmp = tmp.replace('#', ' ');
+            tmp = tmp.replace('@', ' ');
+            tmp = tmp.replace('/', ' ');
+            
+            // split
+            parts = tmp.split(" ");
+        }
+        
+        // return the parsed parts
+        return parts;
+    }
+    
+    // extract the URI from the async-id
+    // format: 1408956550#cc69e7c5-c24f-43cf-8365-8d23bb01c707@decd06cc-2a32-4e5e-80d0-7a7c65b90e6e/303/0/5700
+    protected String getURIFromAsyncID(String id) {
+        String uri = null;
+        
+        // split
+        String[] parts = this.splitAsyncID(id);
+        
+        // re-assemble the URI
+        uri = "/";
+        for(int i=3;i<parts.length;++i) {
+            uri += parts[i];
+            if (i < (parts.length-1)) {
+                uri += "/";
+            }
+        }
+        
+        // DEBUG
+        this.errorLogger().info("getURIFromAsyncID: URI: " + uri);
+        
+        // return the URI
+        return uri;
+    }
+    
+    // extract the endpoint name from the async-id
+    // format: 1408956550#cc69e7c5-c24f-43cf-8365-8d23bb01c707@decd06cc-2a32-4e5e-80d0-7a7c65b90e6e/303/0/5700
+    protected String getEndpointNameFromAsyncID(String id) {
+        // split
+        String[] parts = this.splitAsyncID(id);
+  
+        // DEBUG
+        this.errorLogger().info("getEndpointNameFromAsyncID: endpoint: " + parts[1]);
+        
+        // return the endpoint name
+        return parts[1];
     }
     
     // default formatter for AsyncResponse replies

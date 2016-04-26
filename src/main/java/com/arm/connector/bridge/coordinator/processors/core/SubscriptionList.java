@@ -45,19 +45,19 @@ public class SubscriptionList extends BaseClass {
     }
     
     // add subscription
-    public void addSubscription(String domain,String endpoint,String uri) {
+    public void addSubscription(String domain,String endpoint,String ep_type,String uri) {
         domain = this.checkAndDefaultDomain(domain);
-        if (!this.containsSubscription(domain,endpoint,uri)) {
-            this.errorLogger().info("Adding Subscription: " + domain + ":" + endpoint + ":" + uri);
-            this.m_subscriptions.add(this.makeSubscription(domain, endpoint, uri));
+        if (!this.containsSubscription(domain,endpoint,ep_type,uri)) {
+            this.errorLogger().info("Adding Subscription: " + domain + ":" + endpoint + ":" + ep_type + ":" + uri);
+            this.m_subscriptions.add(this.makeSubscription(domain, endpoint, ep_type, uri));
         }
     }
     
     // contains a given subscription?
-    public boolean containsSubscription(String domain,String endpoint,String uri) {
+    public boolean containsSubscription(String domain,String endpoint,String ep_type,String uri) {
         boolean has_subscription = false;
         domain = this.checkAndDefaultDomain(domain);
-        HashMap<String,String> subscription = this.makeSubscription(domain, endpoint, uri);
+        HashMap<String,String> subscription = this.makeSubscription(domain, endpoint, ep_type, uri);
         if (this.containsSubscription(subscription) >= 0) {
             has_subscription = true;
         }
@@ -66,9 +66,9 @@ public class SubscriptionList extends BaseClass {
     }
     
     // remove a subscription
-    public void removeSubscription(String domain,String endpoint,String uri) {
+    public void removeSubscription(String domain,String endpoint,String ep_type,String uri) {
         domain = this.checkAndDefaultDomain(domain);
-        HashMap<String,String> subscription = this.makeSubscription(domain, endpoint, uri);
+        HashMap<String,String> subscription = this.makeSubscription(domain, endpoint, ep_type, uri);
         int index = this.containsSubscription(subscription);
         if (index >= 0) {
             this.errorLogger().info("Removing Subscription: " + domain + ":" + endpoint + ":" + uri);
@@ -96,9 +96,11 @@ public class SubscriptionList extends BaseClass {
         // compare contents...
         if (s1.get("domain") != null && s2.get("domain") != null && s1.get("domain").equalsIgnoreCase(s2.get("domain"))) {
             if (s1.get("endpoint") != null && s2.get("endpoint") != null && s1.get("endpoint").equalsIgnoreCase(s2.get("endpoint"))) {
-                if (s1.get("uri") != null && s2.get("uri") != null && s1.get("uri").equalsIgnoreCase(s2.get("uri"))) {
-                    // they are the same
-                    same_subscription = true;
+                if (s1.get("ep_type") != null && s2.get("ep_type") != null && s1.get("ep_type").equalsIgnoreCase(s2.get("ep_type"))) {
+                    if (s1.get("uri") != null && s2.get("uri") != null && s1.get("uri").equalsIgnoreCase(s2.get("uri"))) {
+                        // they are the same
+                        same_subscription = true;
+                    }
                 }
             }
         }
@@ -107,11 +109,12 @@ public class SubscriptionList extends BaseClass {
     }
     
     // make subscription entry 
-    private HashMap<String,String> makeSubscription(String domain,String endpoint,String uri) {
+    private HashMap<String,String> makeSubscription(String domain,String endpoint,String ep_type,String uri) {
         domain = this.checkAndDefaultDomain(domain);
         HashMap<String,String> subscription = new HashMap<>();
         subscription.put("domain", domain);
         subscription.put("endpoint",endpoint);
+        subscription.put("ep_type",ep_type);
         subscription.put("uri",uri);
         return subscription;
     }
@@ -120,5 +123,23 @@ public class SubscriptionList extends BaseClass {
     private String checkAndDefaultDomain(String domain) {
         if (domain == null || domain.length() <= 0) return this.m_non_domain;
         return domain;
+    }
+    
+    // get the endpoint type for a given endpoint
+    public String endpointTypeFromEndpointName(String endpoint) {
+        String ep_type = null;
+        
+        for(int i=0;i<this.m_subscriptions.size() && ep_type == null;++i) {
+            HashMap<String,String> subscription = this.m_subscriptions.get(i);
+            if (endpoint != null && endpoint.equalsIgnoreCase(subscription.get("endpoint")) == true) {
+                ep_type = subscription.get("ep_type");
+            }
+        }
+        
+        // DEBUG
+        this.errorLogger().info("endpointTypeFromEndpointName: endpoint: " + endpoint + " type: " + ep_type);
+        
+        // return the endpoint type
+        return ep_type;
     }
 }
