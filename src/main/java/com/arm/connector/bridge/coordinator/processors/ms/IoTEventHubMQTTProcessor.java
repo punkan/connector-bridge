@@ -32,7 +32,12 @@ import com.arm.connector.bridge.transport.MQTTTransport;
 import com.arm.connector.bridge.core.Transport;
 import com.arm.connector.bridge.core.TransportReceiveThread;
 import com.arm.connector.bridge.json.JSONParser;
+import java.io.UnsupportedEncodingException;
+import java.net.URL;
+import java.net.URLDecoder;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import org.fusesource.mqtt.client.QoS;
@@ -438,10 +443,55 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
         return element;
     }
     
+    // get a topic element (parsed as a URL)
+    @SuppressWarnings("empty-statement")
+    private String getTopicElement(String topic,String key) {
+        String value = null;
+        
+        try {
+            // split by forward slash
+            String tmp_slash[] = topic.split("/");
+            
+            // take the last element and split it again, by &
+            if (tmp_slash != null && tmp_slash.length > 0) {
+                String tmp_properties[] = tmp_slash[tmp_slash.length-1].split("&");
+                for(int i=0;tmp_properties != null && i<tmp_properties.length && value == null;++i) {
+                    String prop[] = tmp_properties[i].split("=");
+                    if (prop != null && prop.length == 2 && prop[0].equalsIgnoreCase(key) == true) {
+                        value = prop[1];
+                    }
+                }
+            }
+        }
+        catch (Exception ex) {
+            // Exception during parse
+            this.errorLogger().info("WARNING: getTopicElement: Exception: " + ex.getMessage());
+        }
+        
+        // DEBUG
+        if (value != null) {
+            // value found
+            this.errorLogger().info("IoTEventHub: getTopicElement: key: " + key + "  value: " + value);
+        }
+        else {
+            // value not found
+            this.errorLogger().info("IoTEventHub: getTopicElement: key: " + key + "  value: NULL");
+        }
+        
+        // return the value
+        return value;
+    }
+    
     // get the endpoint name from the MQTT topic
     private String getEndpointNameFromTopic(String topic) {
         // format: devices/__EPNAME__/messages/devicebound/#
         return this.getTopicElement(topic,1);
+    }
+    
+    // get the CoAP verb from the MQTT topic
+    private String getCoAPVerbFromTopic(String topic) {
+        // format: devices/__EPNAME__/messages/devicebound/coap_verb=put....
+        return this.getTopicElement(topic,"coap_verb");
     }
     
     // get the resource URI from the message
@@ -495,9 +545,13 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
         String uri = this.getCoAPURI(message);
         String value = this.getCoAPValue(message);
         
-        // pull the CoAP verb from the message itself... its JSON...
+        // pull the CoAP verb from the message itself... its JSON... (PRIMARY)
         // format: { "path":"/303/0/5850", "new_value":"0", "ep":"mbed-eth-observe", "coap_verb": "get" }
         String coap_verb = this.getCoAPVerb(message);
+        if (coap_verb == null || coap_verb.length() == 0) {
+            // optionally pull the CoAP verb from the MQTT Topic (SECONDARY)
+            coap_verb = this.getCoAPVerbFromTopic(topic);
+        }
         
         // if the ep_name is wildcarded... get the endpoint name from the JSON payload
         // format: { "path":"/303/0/5850", "new_value":"0", "ep":"mbed-eth-observe", "coap_verb": "get" }
