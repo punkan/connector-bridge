@@ -119,8 +119,23 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
     }
     
     // Connection to IoTEventHub MQTT vs. generic MQTT...
-    private boolean connectMQTT(String ep_name) {
-        return this.mqtt(ep_name).connect(this.m_mqtt_host,this.m_mqtt_port,ep_name,this.m_use_clean_session);
+    private boolean connect(String ep_name) {
+        // if not connected attempt
+        if (!this.isConnected(ep_name)) {
+            if (this.mqtt(ep_name).connect(this.m_mqtt_host,this.m_mqtt_port,ep_name,this.m_use_clean_session)) {
+                this.orchestrator().errorLogger().info("IoTEventHub: Setting CoAP command listener...");
+                this.mqtt(ep_name).setOnReceiveListener(this);
+                this.orchestrator().errorLogger().info("IoTEventHub: connection completed successfully");
+            }
+        }
+        else {
+            // already connected
+            this.orchestrator().errorLogger().info("IoTEventHub: Already connected (OK)...");
+        }
+        
+        // return our connection status
+        this.orchestrator().errorLogger().info("IoTEventHub: Connection status: " + this.isConnected(ep_name));
+        return this.isConnected(ep_name);
     }
     
     // OVERRIDE: process a mDS notification for IoTEventHub
@@ -313,26 +328,6 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
         if (ep_type != null) cust_topic = cust_topic.replace("__DEVICE_TYPE__", ep_type);
         this.errorLogger().info("IoTEventHub Customized Topic: " + cust_topic); 
         return cust_topic;
-    }
-    
-    // connect
-    private boolean connect(String ep_name) {
-        // if not connected attempt
-        if (!this.isConnected(ep_name)) {
-            if (this.mqtt(ep_name).connect(this.m_mqtt_host, this.m_mqtt_port, this.m_client_id, true)) {
-                this.orchestrator().errorLogger().info("IoTEventHub: Setting CoAP command listener...");
-                this.mqtt(ep_name).setOnReceiveListener(this);
-                this.orchestrator().errorLogger().info("IoTEventHub: connection completed successfully");
-            }
-        }
-        else {
-            // already connected
-            this.orchestrator().errorLogger().info("IoTEventHub: Already connected (OK)...");
-        }
-        
-        // return our connection status
-        this.orchestrator().errorLogger().info("IoTEventHub: Connection status: " + this.isConnected(ep_name));
-        return this.isConnected(ep_name);
     }
     
     // disconnect
@@ -726,7 +721,7 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
             this.errorLogger().info("IoTEventHub: connecting to MQTT for endpoint: " + ep_name + " type: " + ep_type + "...");
 
             // connect and start listening... 
-            if (this.connectMQTT(ep_name) == true) {
+            if (this.connect(ep_name) == true) {
                 // DEBUG
                 this.errorLogger().info("IoTEventHub: connected to MQTT. Creating and registering listener Thread for endpoint: " + ep_name + " type: " + ep_type);
 
@@ -739,6 +734,7 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
                 
                 // create and start the listener
                 TransportReceiveThread listener = new TransportReceiveThread(mqtt);
+                listener.setOnReceiveListener(this);
                 this.m_mqtt_thread_list.put(ep_name,listener);
                 listener.start();
             } 

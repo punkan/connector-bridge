@@ -588,6 +588,7 @@ public class MQTTTransport extends Transport {
             if (this.m_listener != null && message != null) {
                 // call the registered listener to process the received message
                 this.errorLogger().info("receiveMessage: processing message: " + message);
+                //this.errorLogger().info("receiveAndProcessMessage(MQTT Transport): Topic: " + message.getTopic() + " message: " + message.getMessage());
                 this.m_listener.onMessageReceive(message.getTopic(),message.getMessage());
             }
             else if (this.m_listener != null) {

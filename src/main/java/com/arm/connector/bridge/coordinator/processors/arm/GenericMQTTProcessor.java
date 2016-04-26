@@ -418,8 +418,8 @@ public class GenericMQTTProcessor extends Processor implements Transport.Receive
     public void onMessageReceive(String topic, String message) {
         String verb = "PUT";
         
-        // process the received MQTT message
-        //this.errorLogger().info("onMessageReceive(STD): request (MQTT) topic: " + topic + " message: " + message);
+        // DEBUG
+        this.errorLogger().info("GenericMQTT(CoAP Command): Topic: " + topic + " message: " + message);
         
         // Endpoint Discovery....
         if (this.isEndpointDiscovery(topic) && this.isNotDomainEndpointsOnly(topic) == false) {

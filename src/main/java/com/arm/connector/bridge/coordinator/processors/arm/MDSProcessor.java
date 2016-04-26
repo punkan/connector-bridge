@@ -940,22 +940,28 @@ public class MDSProcessor extends Processor implements MDSInterface {
         String json = null;
         String url = this.createCoAPURL(ep_name, uri);
         
-        // dispatch the mDS REST based on CoAP verb received
-        if (verb.equalsIgnoreCase(("get"))) {
-            this.errorLogger().info("processEndpointResourceOperation: Invoking GET: " + url);
-            json = this.httpGet(url);
+        if (verb != null && verb.length() > 0) {
+            // dispatch the mDS REST based on CoAP verb received
+            if (verb.equalsIgnoreCase(("get"))) {
+                this.errorLogger().info("processEndpointResourceOperation: Invoking GET: " + url);
+                json = this.httpGet(url);
+            }
+            if (verb.equalsIgnoreCase(("put"))) {
+                this.errorLogger().info("processEndpointResourceOperation: Invoking PUT: " + url + " DATA: " + value);
+                json = this.httpPut(url,value);
+            }
+            if (verb.equalsIgnoreCase(("post"))) {
+                this.errorLogger().info("processEndpointResourceOperation: Invoking POST: " + url + " DATA: " + value);
+                json = this.httpPost(url,value);
+            }
+            if (verb.equalsIgnoreCase(("del"))) {
+                this.errorLogger().info("processEndpointResourceOperation: Invoking DELETE: " + url);
+                json = this.httpDelete(url);
+            }
         }
-        if (verb.equalsIgnoreCase(("put"))) {
-            this.errorLogger().info("processEndpointResourceOperation: Invoking PUT: " + url + " DATA: " + value);
-            json = this.httpPut(url,value);
-        }
-        if (verb.equalsIgnoreCase(("post"))) {
-            this.errorLogger().info("processEndpointResourceOperation: Invoking POST: " + url + " DATA: " + value);
-            json = this.httpPost(url,value);
-        }
-        if (verb.equalsIgnoreCase(("del"))) {
-            this.errorLogger().info("processEndpointResourceOperation: Invoking DELETE: " + url);
-            json = this.httpDelete(url);
+        else {
+            this.errorLogger().warning("processEndpointResourceOperation: ERROR: CoAP Verb is NULL. Not processing: ep: " + ep_name + " uri: " + uri + " value: " + value);
+            json = null;
         }
         
         return json;

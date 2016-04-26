@@ -171,8 +171,23 @@ public class WatsonIoTMQTTProcessor extends GenericMQTTProcessor implements Tran
     
     // OVERRIDE: Connection to WatsonIoT vs. stock MQTT...
     @Override
-    protected boolean connectMQTT() {
-        return this.mqtt().connect(this.m_mqtt_ip_address,this.m_mqtt_port,this.m_client_id,this.m_use_clean_session);
+    protected boolean connectMQTT() {        
+        // if not connected attempt
+        if (!this.isConnected()) {
+            if (this.mqtt().connect(this.m_mqtt_ip_address,this.m_mqtt_port,this.m_client_id,this.m_use_clean_session)) {
+                this.orchestrator().errorLogger().info("WatsonIoT: Setting CoAP command listener...");
+                this.mqtt().setOnReceiveListener(this);
+                this.orchestrator().errorLogger().info("WatsonIoT: connection completed successfully");
+            }
+        }
+        else {
+            // already connected
+            this.orchestrator().errorLogger().info("WatsonIoT: Already connected (OK)...");
+        }
+        
+        // return our connection status
+        this.orchestrator().errorLogger().info("WatsonIoT: Connection status: " + this.isConnected());
+        return this.isConnected();
     }
     
     // OVERRIDE: (Listening) Topics for WatsonIoT vs. stock MQTT...
@@ -427,26 +442,6 @@ public class WatsonIoTMQTTProcessor extends GenericMQTTProcessor implements Tran
         if (ep_type != null) cust_topic = cust_topic.replace("__DEVICE_TYPE__", ep_type);
         this.errorLogger().info("WatsonIoT Customized Topic: " + cust_topic); 
         return cust_topic;
-    }
-    
-    // connect
-    private boolean connect() {
-        // if not connected attempt
-        if (!this.isConnected()) {
-            if (this.mqtt().connect(this.m_mqtt_ip_address, this.m_mqtt_port, this.m_client_id, true)) {
-                this.orchestrator().errorLogger().info("WatsonIoT: Setting CoAP command listener...");
-                this.mqtt().setOnReceiveListener(this);
-                this.orchestrator().errorLogger().info("WatsonIoT: connection completed successfully");
-            }
-        }
-        else {
-            // already connected
-            this.orchestrator().errorLogger().info("WatsonIoT: Already connected (OK)...");
-        }
-        
-        // return our connection status
-        this.orchestrator().errorLogger().info("WatsonIoT: Connection status: " + this.isConnected());
-        return this.isConnected();
     }
     
     // disconnect
