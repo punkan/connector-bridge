@@ -954,6 +954,10 @@ public class MDSProcessor extends Processor implements MDSInterface {
                 this.errorLogger().info("processEndpointResourceOperation: Invoking POST: " + url + " DATA: " + value);
                 json = this.httpPost(url,value);
             }
+            if (verb.equalsIgnoreCase(("delete"))) {
+                this.errorLogger().info("processEndpointResourceOperation: Invoking DELETE: " + url);
+                json = this.httpDelete(url);
+            }
             if (verb.equalsIgnoreCase(("del"))) {
                 this.errorLogger().info("processEndpointResourceOperation: Invoking DELETE: " + url);
                 json = this.httpDelete(url);

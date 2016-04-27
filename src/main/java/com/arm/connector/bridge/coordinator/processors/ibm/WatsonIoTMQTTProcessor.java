@@ -673,7 +673,7 @@ public class WatsonIoTMQTTProcessor extends GenericMQTTProcessor implements Tran
                 if (this.mqtt() != null) {
                     boolean status = this.mqtt().sendMessage(this.customizeTopic(this.m_watson_iot_observe_notification_topic,ep_name,this.m_watson_iot_device_manager.getDeviceType(ep_name)),observation,QoS.AT_MOST_ONCE); 
                     if (status == true) {
-                        // not connected
+                        // success
                         this.errorLogger().info("WatsonIoT(CoAP Command): CoAP observation(get) sent. SUCCESS");
                     }
                     else {

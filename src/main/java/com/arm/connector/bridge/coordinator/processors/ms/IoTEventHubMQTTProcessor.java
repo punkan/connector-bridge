@@ -596,7 +596,7 @@ public class IoTEventHubMQTTProcessor extends GenericMQTTProcessor implements Tr
                 if (this.mqtt(ep_name) != null) {
                     boolean status = this.mqtt(ep_name).sendMessage(this.customizeTopic(this.m_iot_event_hub_observe_notification_topic,ep_name,null),observation,QoS.AT_MOST_ONCE); 
                     if (status == true) {
-                        // not connected
+                        // success
                         this.errorLogger().info("IoTEventHub(CoAP Command): CoAP observation(get) sent. SUCCESS");
                     }
                     else {
