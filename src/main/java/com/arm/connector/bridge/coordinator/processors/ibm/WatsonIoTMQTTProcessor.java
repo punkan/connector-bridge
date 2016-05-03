@@ -97,16 +97,16 @@ public class WatsonIoTMQTTProcessor extends GenericMQTTProcessor implements Tran
             this.m_watson_iot_device_data_key = "coap";
         }
         
-        // RTI
+        // RTI (no longer used... remove at some point...) 
         this.m_rti_format_enable = this.orchestrator().preferences().booleanValueOf("iotf_use_rti_format",this.m_suffix);
         if (this.m_rti_format_enable) {
             this.errorLogger().info("RTI Formatting ENABLED.");
         }
         
-        // starter kit supports observation notifications
+        // Observation notifications
         this.m_watson_iot_observe_notification_topic = this.orchestrator().preferences().valueOf("iotf_observe_notification_topic",this.m_suffix).replace("__EVENT_TYPE__",this.m_observation_type); 
         
-        // starter kit can send CoAP commands back through mDS into the endpoint via these Topics... 
+        // Send CoAP commands back through mDS into the endpoint via these Topics... 
         this.m_watson_iot_coap_cmd_topic_get = this.orchestrator().preferences().valueOf("iotf_coap_cmd_topic",this.m_suffix).replace("__COMMAND_TYPE__","get");
         this.m_watson_iot_coap_cmd_topic_put = this.orchestrator().preferences().valueOf("iotf_coap_cmd_topic",this.m_suffix).replace("__COMMAND_TYPE__","put");
         this.m_watson_iot_coap_cmd_topic_post = this.orchestrator().preferences().valueOf("iotf_coap_cmd_topic",this.m_suffix).replace("__COMMAND_TYPE__","post");
@@ -123,7 +123,7 @@ public class WatsonIoTMQTTProcessor extends GenericMQTTProcessor implements Tran
         this.m_client_id_template = this.orchestrator().preferences().valueOf("iotf_client_id_template",this.m_suffix).replace("__ORG_ID__",this.m_watson_iot_org_id);
         this.m_client_id = this.createWatsonIoTClientID(this.m_mds_domain);
         
-        // WatsonIoT Device Manager - will initialize and update our WatsonIoT bindings/metadata
+        // Watson IoT Device Manager - will initialize and update our WatsonIoT bindings/metadata
         this.m_watson_iot_device_manager = new WatsonIoTDeviceManager(this.orchestrator().errorLogger(),this.orchestrator().preferences(),this.m_suffix,http);
         this.m_watson_iot_device_manager.updateWatsonIoTBindings(this.m_watson_iot_org_id, this.m_watson_iot_org_key);
         this.m_watson_iot_api_key = this.m_watson_iot_device_manager.updateUsernameBinding(this.m_watson_iot_api_key);
@@ -640,7 +640,7 @@ public class WatsonIoTMQTTProcessor extends GenericMQTTProcessor implements Tran
             ep_name = this.getCoAPEndpointName(message);
         }
         
-        // dispatch the coap resource operation request
+        // dispatch the coap resource operation request (GET,PUT,POST,DELETE handled here)
         String response = this.orchestrator().processEndpointResourceOperation(coap_verb,ep_name,uri,value);
         
         // examine the response

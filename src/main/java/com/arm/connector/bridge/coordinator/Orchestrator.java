@@ -25,10 +25,11 @@ package com.arm.connector.bridge.coordinator;
 
 import com.arm.connector.bridge.console.ConsoleManager;
 import com.arm.connector.bridge.coordinator.processors.arm.GenericMQTTProcessor;
-import com.arm.connector.bridge.coordinator.processors.ibm.ibmPeerProcessorFactory;
-import com.arm.connector.bridge.coordinator.processors.ms.msPeerProcessorFactory;
+import com.arm.connector.bridge.coordinator.processors.ibm.WatsonIoTPeerProcessorFactory;
+import com.arm.connector.bridge.coordinator.processors.ms.MSIoTHubPeerProcessorFactory;
 import com.arm.connector.bridge.coordinator.processors.interfaces.MDSInterface;
 import com.arm.connector.bridge.coordinator.processors.arm.MDSProcessor;
+import com.arm.connector.bridge.coordinator.processors.aws.AWSIoTPeerProcessorFactory;
 import com.arm.connector.bridge.coordinator.processors.interfaces.PeerInterface;
 import com.arm.connector.bridge.coordinator.processors.sample.Sample3rdPartyProcessor;
 import com.arm.connector.bridge.core.ErrorLogger;
@@ -113,12 +114,17 @@ public class Orchestrator implements MDSInterface, PeerInterface {
         if (this.ibmPeerEnabled()) {
             // IBM/MQTT: create the MQTT processor manager
             this.errorLogger().info("Orchestrator: adding IBM Watson IoT MQTT Processor");
-            this.m_peer_processor_list.add(ibmPeerProcessorFactory.createPeerProcessor(this,this.m_http));
+            this.m_peer_processor_list.add(WatsonIoTPeerProcessorFactory.createPeerProcessor(this,this.m_http));
         }
         if (this.msPeerEnabled()) {
-            // MS IoTEventHub/MQTT: create the MQTT processor manager
-            this.errorLogger().info("Orchestrator: adding MS IoTEventHub MQTT Processor");
-            this.m_peer_processor_list.add(msPeerProcessorFactory.createPeerProcessor(this,this.m_http));
+            // MS IoTHub/MQTT: create the MQTT processor manager
+            this.errorLogger().info("Orchestrator: adding MS IoTHub MQTT Processor");
+            this.m_peer_processor_list.add(MSIoTHubPeerProcessorFactory.createPeerProcessor(this,this.m_http));
+        }
+        if (this.awsPeerEnabled()) {
+            // AWS IoT/MQTT: create the MQTT processor manager
+            this.errorLogger().info("Orchestrator: adding AWS IoT MQTT Processor");
+            this.m_peer_processor_list.add(AWSIoTPeerProcessorFactory.createPeerProcessor(this,this.m_http));
         }
         if (this.genericMQTTPeerEnabled()) {
             // Create the sample peer processor...
@@ -140,6 +146,11 @@ public class Orchestrator implements MDSInterface, PeerInterface {
     // use MS peer processor?
     private Boolean msPeerEnabled() {
         return (this.preferences().booleanValueOf("enable_iot_event_hub_addon"));
+    }
+    
+    // use AWS peer processor?
+    private Boolean awsPeerEnabled() {
+        return (this.preferences().booleanValueOf("enable_aws_iot_gw_addon"));
     }
     
     // use sample 3rd Party peer processor?

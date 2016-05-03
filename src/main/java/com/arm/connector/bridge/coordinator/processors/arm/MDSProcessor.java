@@ -672,14 +672,19 @@ public class MDSProcessor extends Processor implements MDSInterface {
         return this.m_http.getLastResponseCode();
     }
     
-    // invoke HTTP GET request
+    // invoke HTTP GET request (SSL)
     private String httpsGet(String url) {
+        return this.httpsGet(url,this.m_content_type);
+    }
+    
+    // invoke HTTP GET request (SSL)
+    private String httpsGet(String url,String content_type) {
         String response = null;
         if (this.useAPITokenAuth()) {
-            response = this.m_http.httpsGetApiTokenAuth(url, this.m_api_token, null, this.m_content_type, this.m_mds_domain);
+            response = this.m_http.httpsGetApiTokenAuth(url, this.m_api_token, null, content_type, this.m_mds_domain);
         }
         else {
-            response = this.m_http.httpsGet(url, this.m_mds_username, this.m_mds_password, null, this.m_content_type, this.m_mds_domain);
+            response = this.m_http.httpsGet(url, this.m_mds_username, this.m_mds_password, null, content_type, this.m_mds_domain);
         }
         this.errorLogger().info("httpsGet: response: " + this.m_http.getLastResponseCode());
         return response;
@@ -687,12 +692,17 @@ public class MDSProcessor extends Processor implements MDSInterface {
     
     // invoke HTTP GET request
     private String httpGet(String url) {
+        return this.httpGet(url,this.m_content_type);
+    }
+    
+    // invoke HTTP GET request
+    private String httpGet(String url,String content_type) {
         String response = null;
         if (this.useAPITokenAuth()) {
-            response = this.m_http.httpGetApiTokenAuth(url, this.m_api_token, null, this.m_content_type, this.m_mds_domain);
+            response = this.m_http.httpGetApiTokenAuth(url, this.m_api_token, null, content_type, this.m_mds_domain);
         }
         else {
-            response = this.m_http.httpGet(url, this.m_mds_username, this.m_mds_password, null, this.m_content_type, this.m_mds_domain);
+            response = this.m_http.httpGet(url, this.m_mds_username, this.m_mds_password, null, content_type, this.m_mds_domain);
         }
         this.errorLogger().info("httpGet: response: " + this.m_http.getLastResponseCode());
         return response;
@@ -705,12 +715,17 @@ public class MDSProcessor extends Processor implements MDSInterface {
     
     // invoke HTTP PUT request (SSL)
     private String httpsPut(String url,String data) {
+        return this.httpsPut(url,data,this.m_content_type);
+    }
+    
+    // invoke HTTP PUT request (SSL)
+    private String httpsPut(String url,String data,String content_type) {
         String response = null;
         if (this.useAPITokenAuth()) {
-            response = this.m_http.httpsPutApiTokenAuth(url, this.m_api_token, data, this.m_content_type, this.m_mds_domain);
+            response = this.m_http.httpsPutApiTokenAuth(url, this.m_api_token, data, content_type, this.m_mds_domain);
         }
         else {
-            response = this.m_http.httpsPut(url, this.m_mds_username, this.m_mds_password, data, this.m_content_type, this.m_mds_domain);
+            response = this.m_http.httpsPut(url, this.m_mds_username, this.m_mds_password, data, content_type, this.m_mds_domain);
         }
         this.errorLogger().info("httpsPut: response: " + this.m_http.getLastResponseCode());
         return response;
@@ -723,12 +738,17 @@ public class MDSProcessor extends Processor implements MDSInterface {
     
     // invoke HTTP PUT request
     private String httpPut(String url,String data) {
+        return this.httpPut(url,data,this.m_content_type);
+    }
+    
+    // invoke HTTP PUT request
+    private String httpPut(String url,String data,String content_type) {
         String response = null;
         if (this.useAPITokenAuth()) {
-            response = this.m_http.httpPutApiTokenAuth(url, this.m_api_token, data, this.m_content_type, this.m_mds_domain);
+            response = this.m_http.httpPutApiTokenAuth(url, this.m_api_token, data, content_type, this.m_mds_domain);
         }
         else {
-            response = this.m_http.httpPut(url, this.m_mds_username, this.m_mds_password, data, this.m_content_type, this.m_mds_domain);
+            response = this.m_http.httpPut(url, this.m_mds_username, this.m_mds_password, data, content_type, this.m_mds_domain);
         }
         this.errorLogger().info("httpPut: response: " + this.m_http.getLastResponseCode());
         return response;
@@ -739,14 +759,19 @@ public class MDSProcessor extends Processor implements MDSInterface {
         return this.httpsPost(url,null);
     }
     
-    // invoke HTTP POST request (SSL)
+    // invoke HTTP POST request (SSL) 
     private String httpsPost(String url,String data) {
+        return this.httpsPost(url,data,this.m_content_type);
+    }
+    
+    // invoke HTTP POST request (SSL)
+    private String httpsPost(String url,String data,String content_type) {
         String response = null;
         if (this.useAPITokenAuth()) {
-            response = this.m_http.httpsPostApiTokenAuth(url, this.m_api_token, data, this.m_content_type, this.m_mds_domain);
+            response = this.m_http.httpsPostApiTokenAuth(url, this.m_api_token, data, content_type, this.m_mds_domain);
         }
         else {
-            response = this.m_http.httpsPost(url, this.m_mds_username, this.m_mds_password, data, this.m_content_type, this.m_mds_domain);
+            response = this.m_http.httpsPost(url, this.m_mds_username, this.m_mds_password, data, content_type, this.m_mds_domain);
         }
         this.errorLogger().info("httpsPost: response: " + this.m_http.getLastResponseCode());
         return response;
@@ -757,14 +782,19 @@ public class MDSProcessor extends Processor implements MDSInterface {
         return this.httpPost(url,null);
     }
     
-    // invoke HTTP POST request
+    // invoke HTTP POST request (SSL) 
     private String httpPost(String url,String data) {
+        return this.httpPost(url,data,this.m_content_type);
+    }
+    
+    // invoke HTTP POST request - set the content_type to "plain/text" forcefully...
+    private String httpPost(String url,String data,String content_type) {
         String response = null;
         if (this.useAPITokenAuth()) {
-            response = this.m_http.httpPostApiTokenAuth(url, this.m_api_token, data, this.m_content_type, this.m_mds_domain);
+            response = this.m_http.httpPostApiTokenAuth(url, this.m_api_token, data, content_type, this.m_mds_domain);
         }
         else {
-            response = this.m_http.httpPost(url, this.m_mds_username, this.m_mds_password, data, this.m_content_type, this.m_mds_domain);
+            response = this.m_http.httpPost(url, this.m_mds_username, this.m_mds_password, data, content_type, this.m_mds_domain);
         }
         this.errorLogger().info("httpPost: response: " + this.m_http.getLastResponseCode());
         return response;
@@ -772,12 +802,17 @@ public class MDSProcessor extends Processor implements MDSInterface {
     
     // invoke HTTP DELETE request
     private String httpsDelete(String url) {
+        return this.httpsDelete(url,this.m_content_type);
+    }
+    
+    // invoke HTTP DELETE request
+    private String httpsDelete(String url,String content_type) {
         String response = null;
         if (this.useAPITokenAuth()) {
-            response = this.m_http.httpsDeleteApiTokenAuth(url, this.m_api_token, null, this.m_content_type, this.m_mds_domain);
+            response = this.m_http.httpsDeleteApiTokenAuth(url, this.m_api_token, null, content_type, this.m_mds_domain);
         }
         else {
-            response = this.m_http.httpsDelete(url, this.m_mds_username, this.m_mds_password, null, this.m_content_type, this.m_mds_domain);
+            response = this.m_http.httpsDelete(url, this.m_mds_username, this.m_mds_password, null, content_type, this.m_mds_domain);
         }
         this.errorLogger().info("httpDelete: response: " + this.m_http.getLastResponseCode());
         return response;
@@ -785,12 +820,17 @@ public class MDSProcessor extends Processor implements MDSInterface {
     
     // invoke HTTP DELETE request
     private String httpDelete(String url) {
+        return this.httpDelete(url,this.m_content_type);
+    }
+    
+    // invoke HTTP DELETE request
+    private String httpDelete(String url,String content_type) {
         String response = null;
         if (this.useAPITokenAuth()) {
-            response = this.m_http.httpDeleteApiTokenAuth(url, this.m_api_token, null, this.m_content_type, this.m_mds_domain);
+            response = this.m_http.httpDeleteApiTokenAuth(url, this.m_api_token, null, content_type, this.m_mds_domain);
         }
         else {
-            response = this.m_http.httpDelete(url, this.m_mds_username, this.m_mds_password, null, this.m_content_type, this.m_mds_domain);
+            response = this.m_http.httpDelete(url, this.m_mds_username, this.m_mds_password, null, content_type, this.m_mds_domain);
         }
         this.errorLogger().info("httpDelete: response: " + this.m_http.getLastResponseCode());
         return response;
@@ -944,23 +984,23 @@ public class MDSProcessor extends Processor implements MDSInterface {
             // dispatch the mDS REST based on CoAP verb received
             if (verb.equalsIgnoreCase(("get"))) {
                 this.errorLogger().info("processEndpointResourceOperation: Invoking GET: " + url);
-                json = this.httpGet(url);
+                json = this.httpsGet(url);
             }
             if (verb.equalsIgnoreCase(("put"))) {
                 this.errorLogger().info("processEndpointResourceOperation: Invoking PUT: " + url + " DATA: " + value);
-                json = this.httpPut(url,value);
+                json = this.httpsPut(url,value);
             }
             if (verb.equalsIgnoreCase(("post"))) {
                 this.errorLogger().info("processEndpointResourceOperation: Invoking POST: " + url + " DATA: " + value);
-                json = this.httpPost(url,value);
+                json = this.httpsPost(url,value,"plain/text");  // nail content_type to "plain/text"
             }
             if (verb.equalsIgnoreCase(("delete"))) {
                 this.errorLogger().info("processEndpointResourceOperation: Invoking DELETE: " + url);
-                json = this.httpDelete(url);
+                json = this.httpsDelete(url,"plain/text");      // nail content_type to "plain/text"
             }
             if (verb.equalsIgnoreCase(("del"))) {
                 this.errorLogger().info("processEndpointResourceOperation: Invoking DELETE: " + url);
-                json = this.httpDelete(url);
+                json = this.httpsDelete(url,"plain/text");      // nail content_type to "plain/text"
             }
         }
         else {

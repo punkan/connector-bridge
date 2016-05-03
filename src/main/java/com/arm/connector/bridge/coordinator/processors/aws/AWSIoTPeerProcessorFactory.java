@@ -1,6 +1,6 @@
 /**
- * @file    msPeerProcessorFactory.java
- * @brief   MS IoTEventHub Peer Processor Factory
+ * @file    awsPeerProcessorFactory.java
+ * @brief   AWS IoT Peer Processor Factory
  * @author  Doug Anson
  * @version 1.0
  * @see
@@ -21,7 +21,7 @@
  * 
  */
 
-package com.arm.connector.bridge.coordinator.processors.ms;
+package com.arm.connector.bridge.coordinator.processors.aws;
 
 import com.arm.connector.bridge.coordinator.processors.arm.GenericMQTTProcessor;
 import com.arm.connector.bridge.coordinator.Orchestrator;
@@ -32,39 +32,39 @@ import com.arm.connector.bridge.core.Transport;
 import java.util.ArrayList;
 
 /**
- * MS IoTEventHub Peer Processor Manager: Factory for initiating a peer processor for MS IoTEventHub Cloud Services
+ * AWS IotHub Peer Processor Manager: Factory for initiating a peer processor for AWS IotHub Cloud Services
  * @author Doug Anson
  */
-public class msPeerProcessorFactory extends BasePeerProcessorFactory implements Transport.ReceiveListener, PeerInterface {     
-    // Factory method for initializing the MS IoTEventHub MQTT collection orchestrator
-    public static msPeerProcessorFactory createPeerProcessor(Orchestrator manager,HttpTransport http) {
+public class AWSIoTPeerProcessorFactory extends BasePeerProcessorFactory implements Transport.ReceiveListener, PeerInterface {     
+    // Factory method for initializing the AWS IotHub MQTT collection orchestrator
+    public static AWSIoTPeerProcessorFactory createPeerProcessor(Orchestrator manager,HttpTransport http) {
         // create me
-        msPeerProcessorFactory me = new msPeerProcessorFactory(manager,http);
+        AWSIoTPeerProcessorFactory me = new AWSIoTPeerProcessorFactory(manager,http);
         
         // initialize me
-        boolean iot_event_hub_enabled = manager.preferences().booleanValueOf("enable_iot_event_hub_addon");
+        boolean aws_iot_gw_enabled = manager.preferences().booleanValueOf("enable_aws_iot_gw_addon");
         String mgr_config = manager.preferences().valueOf("mqtt_mgr_config");
         if (mgr_config != null && mgr_config.length() > 0) {
             // muliple MQTT brokers requested... follow configuration and assign suffixes
             String[] config = mgr_config.split(";");
             for(int i=0;i<config.length;++i) {
-                if (iot_event_hub_enabled == true && config[i].equalsIgnoreCase("iot_event_hub") == true) {
-                    manager.errorLogger().info("Registering MS IoTEventHub MQTT processor...");
-                    GenericMQTTProcessor p = new IoTEventHubMQTTProcessor(manager,null,""+i,http);
+                if (aws_iot_gw_enabled == true && config[i].equalsIgnoreCase("aws_iot_gw") == true) {
+                    manager.errorLogger().info("Registering AWS IoT MQTT processor...");
+                    GenericMQTTProcessor p = new AWSIoTMQTTProcessor(manager,null,""+i,http);
                     me.addProcessor(p);
                 }
-                if (iot_event_hub_enabled == true && config[i].equalsIgnoreCase("iot_event_hub-d") == true) {
-                    manager.errorLogger().info("Registering MS IoTEventHub MQTT processor (default)...");
-                    GenericMQTTProcessor p = new IoTEventHubMQTTProcessor(manager,null,""+i,http);
+                if (aws_iot_gw_enabled == true && config[i].equalsIgnoreCase("aws_iot_gw-d") == true) {
+                    manager.errorLogger().info("Registering AWS IoT MQTT processor (default)...");
+                    GenericMQTTProcessor p = new AWSIoTMQTTProcessor(manager,null,""+i,http);
                     me.addProcessor(p,true);
                 }
             }
         }
         else {
             // single MQTT broker configuration requested
-            if (iot_event_hub_enabled == true) {
-                manager.errorLogger().info("Registering MS IoTEventHub MQTT processor (singleton)...");
-                GenericMQTTProcessor p = new IoTEventHubMQTTProcessor(manager,null,http);
+            if (aws_iot_gw_enabled == true) {
+                manager.errorLogger().info("Registering AWS IoT MQTT processor (singleton)...");
+                GenericMQTTProcessor p = new AWSIoTMQTTProcessor(manager,null,http);
                 me.addProcessor(p);
             }
         }
@@ -74,7 +74,7 @@ public class msPeerProcessorFactory extends BasePeerProcessorFactory implements 
     }
     
     // constructor
-    public msPeerProcessorFactory(Orchestrator manager,HttpTransport http) {
+    public AWSIoTPeerProcessorFactory(Orchestrator manager,HttpTransport http) {
         super(manager,null);
         this.m_http = http;
         this.m_mqtt_list = new ArrayList<>();

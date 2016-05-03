@@ -1,6 +1,6 @@
 /**
- * @file    ibmPeerProcessorFactory.java
- * @brief   IBM Peer Processor Factory
+ * @file    WatsonIoTPeerProcessorFactory.java
+ * @brief   IBM Watson IoT Peer Processor Factory
  * @author  Doug Anson
  * @version 1.0
  * @see
@@ -33,14 +33,14 @@ import com.arm.connector.bridge.core.Transport;
 import java.util.ArrayList;
 
 /**
- * IBM Peer Processor Manager: Factory for initiating a peer processor for IBM Cloud Services
+ * IBM Watson IoT Peer Processor Manager: Factory for initiating a peer processor for IBM Watson IoT
  * @author Doug Anson
  */
-public class ibmPeerProcessorFactory extends BasePeerProcessorFactory implements Transport.ReceiveListener, PeerInterface {  
+public class WatsonIoTPeerProcessorFactory extends BasePeerProcessorFactory implements Transport.ReceiveListener, PeerInterface {  
     // Factory method for initializing the IBM MQTT collection orchestrator
-    public static ibmPeerProcessorFactory createPeerProcessor(Orchestrator manager,HttpTransport http) {
+    public static WatsonIoTPeerProcessorFactory createPeerProcessor(Orchestrator manager,HttpTransport http) {
         // create me
-        ibmPeerProcessorFactory me = new ibmPeerProcessorFactory(manager,http);
+        WatsonIoTPeerProcessorFactory me = new WatsonIoTPeerProcessorFactory(manager,http);
         
         // initialize me
         boolean starterkit_enabled = manager.preferences().booleanValueOf("enable_starterkit_addon");
@@ -51,12 +51,12 @@ public class ibmPeerProcessorFactory extends BasePeerProcessorFactory implements
             String[] config = mgr_config.split(";");
             for(int i=0;i<config.length;++i) {
                 if (starterkit_enabled == true && config[i].equalsIgnoreCase("sk") == true) {
-                    manager.errorLogger().info("Registering StarterKit MQTT processor...");
+                    manager.errorLogger().info("Registering IBM StarterKit MQTT processor...");
                     GenericMQTTProcessor p = new StarterKitMQTTProcessor(manager,""+i,http);
                     me.addProcessor(p);
                 }
                 if (starterkit_enabled == true && config[i].equalsIgnoreCase("sk-d") == true) {
-                    manager.errorLogger().info("Registering StarterKit MQTT processor (default)...");
+                    manager.errorLogger().info("Registering IBM StarterKit MQTT processor (default)...");
                     GenericMQTTProcessor p = new StarterKitMQTTProcessor(manager,""+i,http);
                     me.addProcessor(p,true);
                 }
@@ -91,7 +91,7 @@ public class ibmPeerProcessorFactory extends BasePeerProcessorFactory implements
     }
     
     // constructor
-    public ibmPeerProcessorFactory(Orchestrator manager,HttpTransport http) {
+    public WatsonIoTPeerProcessorFactory(Orchestrator manager,HttpTransport http) {
         super(manager,null);
         this.m_http = http;
         this.m_mqtt_list = new ArrayList<>();

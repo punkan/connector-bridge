@@ -1,6 +1,6 @@
 /**
- * @file    IoTEventHubDeviceManager.java
- * @brief   MS IoTEventHub Device Manager for the MS IoTEventHub Peer Processor
+ * @file    AWSIoTDeviceManager.java
+ * @brief   MS AWSIoT Device Manager for the MS AWSIoT Peer Processor
  * @author  Doug Anson
  * @version 1.0
  * @see
@@ -20,7 +20,7 @@
  * limitations under the License.
  * 
  */
-package com.arm.connector.bridge.coordinator.processors.ms;
+package com.arm.connector.bridge.coordinator.processors.aws;
 
 import com.arm.connector.bridge.coordinator.Orchestrator;
 import com.arm.connector.bridge.core.BaseClass;
@@ -31,28 +31,28 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * This class defines the required REST functions to manage IoTEventHub devices via the gateway mapping
+ * This class defines the required REST functions to manage AWSIoT devices via the gateway mapping
  * @author Doug Anson
  */
-public class IoTEventHubDeviceManager extends BaseClass {
+public class AWSIoTDeviceManager extends BaseClass {
     private HttpTransport                           m_http = null;
     private Orchestrator                            m_orchestrator = null;
     private String                                  m_suffix = null;
     private HashMap<String,HashMap<String,String>>  m_endpoint_details = null;
     private String                                  m_device_id_url_template = null;
     private String                                  m_api_version = null;
-    private String                                  m_iot_event_hub_name = null;
-    private String                                  m_iot_event_hub_add_device_json = null;
-    private String                                  m_iot_event_hub_sas_token = null;
-    private String                                  m_iot_event_hub_auth_qualifier = "SharedAccessSignature";
+    private String                                  m_aws_iot_gw_name = null;
+    private String                                  m_aws_iot_gw_add_device_json = null;
+    private String                                  m_aws_iot_gw_sas_token = null;
+    private String                                  m_aws_iot_gw_auth_qualifier = "SharedAccessSignature";
     
      // constructor
-    public IoTEventHubDeviceManager(ErrorLogger logger,PreferenceManager preferences,HttpTransport http,Orchestrator orchestrator) {
+    public AWSIoTDeviceManager(ErrorLogger logger,PreferenceManager preferences,HttpTransport http,Orchestrator orchestrator) {
         this(logger,preferences,null,http,orchestrator);
     }
     
     // constructor
-    public IoTEventHubDeviceManager(ErrorLogger logger,PreferenceManager preferences,String suffix,HttpTransport http,Orchestrator orchestrator) {
+    public AWSIoTDeviceManager(ErrorLogger logger,PreferenceManager preferences,String suffix,HttpTransport http,Orchestrator orchestrator) {
         super(logger,preferences);
         
         // HTTP and suffix support
@@ -63,20 +63,20 @@ public class IoTEventHubDeviceManager extends BaseClass {
         // initialize the endpoint keys map
         this.m_endpoint_details = new HashMap<>();
         
-        // IoTEventHub Name
-        this.m_iot_event_hub_name = this.preferences().valueOf("iot_event_hub_name",this.m_suffix);
+        // AWSIoT Name
+        this.m_aws_iot_gw_name = this.preferences().valueOf("aws_iot_gw_name",this.m_suffix);
         
-        // IoTEventHub REST API Version
-        this.m_api_version = this.preferences().valueOf("iot_event_hub_api_version",this.m_suffix);
+        // AWSIoT REST API Version
+        this.m_api_version = this.preferences().valueOf("aws_iot_gw_api_version",this.m_suffix);
         
-        // IoTEventHub DeviceID REST URL Template
-        this.m_device_id_url_template = this.preferences().valueOf("iot_event_hub_device_id_url",this.m_suffix).replace("__IOT_EVENT_HUB__",this.m_iot_event_hub_name).replace("__API_VERSION__", this.m_api_version);
+        // AWSIoT DeviceID REST URL Template
+        this.m_device_id_url_template = this.preferences().valueOf("aws_iot_gw_device_id_url",this.m_suffix).replace("__IOT_EVENT_HUB__",this.m_aws_iot_gw_name).replace("__API_VERSION__", this.m_api_version);
     
         // Add device JSON template
-        this.m_iot_event_hub_add_device_json = this.preferences().valueOf("iot_event_hub_add_device_json",this.m_suffix);
+        this.m_aws_iot_gw_add_device_json = this.preferences().valueOf("aws_iot_gw_add_device_json",this.m_suffix);
         
-        // IoTEventHub SAS Token (take out the qualifier if present...)
-        this.m_iot_event_hub_sas_token = this.preferences().valueOf("iot_event_hub_sas_token",this.m_suffix).replace("SharedAccessSignature ", "").trim();
+        // AWSIoT SAS Token (take out the qualifier if present...)
+        this.m_aws_iot_gw_sas_token = this.preferences().valueOf("aws_iot_gw_sas_token",this.m_suffix).replace("SharedAccessSignature ", "").trim();
     }
     
     // get the orchestrator
@@ -118,7 +118,7 @@ public class IoTEventHubDeviceManager extends BaseClass {
         String url = this.m_device_id_url_template.replace("__EPNAME__", device);
                  
         // build out the POST payload
-        String payload = this.m_iot_event_hub_add_device_json.replace("__EPNAME__", device);
+        String payload = this.m_aws_iot_gw_add_device_json.replace("__EPNAME__", device);
         
         // DEBUG
         this.errorLogger().info("registerNewDevice: URL: " + url + " DATA: " + payload);
@@ -202,25 +202,25 @@ public class IoTEventHubDeviceManager extends BaseClass {
     
     // GET specific data to a given URL 
     private String get(String url) {
-        this.m_http.setAuthorizationQualifier(this.m_iot_event_hub_auth_qualifier);
-        String result = this.m_http.httpsGetApiTokenAuth(url,this.m_iot_event_hub_sas_token,null,"application/json",null);
+        this.m_http.setAuthorizationQualifier(this.m_aws_iot_gw_auth_qualifier);
+        String result = this.m_http.httpsGetApiTokenAuth(url,this.m_aws_iot_gw_sas_token,null,"application/json",null);
         return result;
     }
     
     // PUT specific data to a given URL (with data)
     private String put(String url,String payload) {
-        this.m_http.setAuthorizationQualifier(this.m_iot_event_hub_auth_qualifier);
-        String result = this.m_http.httpsPutApiTokenAuth(url,this.m_iot_event_hub_sas_token,payload,"application/json",null);
+        this.m_http.setAuthorizationQualifier(this.m_aws_iot_gw_auth_qualifier);
+        String result = this.m_http.httpsPutApiTokenAuth(url,this.m_aws_iot_gw_sas_token,payload,"application/json",null);
         return result;
     }
     
     // DELETE specific data to a given URL (with data)
     private String delete(String url,String etag) { return this.delete(url,etag,null); }
     private String delete(String url,String etag,String payload) {
-        this.m_http.setAuthorizationQualifier(this.m_iot_event_hub_auth_qualifier);
+        this.m_http.setAuthorizationQualifier(this.m_aws_iot_gw_auth_qualifier);
         this.m_http.setETagValue(etag);             // ETag header required...
         this.m_http.setIfMatchValue("*");           // If-Match header required... 
-        String result = this.m_http.httpsDeleteApiTokenAuth(url,this.m_iot_event_hub_sas_token,payload,"application/json",null);
+        String result = this.m_http.httpsDeleteApiTokenAuth(url,this.m_aws_iot_gw_sas_token,payload,"application/json",null);
         return result;
     }
     
@@ -345,7 +345,7 @@ public class IoTEventHubDeviceManager extends BaseClass {
     
     // create a MQTT Password for a given device
     public String createMQTTPassword(String device) {
-        // use the IoTEventHub SAS Token + the original signature qualifier
-        return this.m_iot_event_hub_auth_qualifier + " " + this.m_iot_event_hub_sas_token;
+        // use the AWSIoT SAS Token + the original signature qualifier
+        return this.m_aws_iot_gw_auth_qualifier + " " + this.m_aws_iot_gw_sas_token;
     }
 }
