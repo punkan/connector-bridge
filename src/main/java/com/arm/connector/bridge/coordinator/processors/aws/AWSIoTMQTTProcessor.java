@@ -51,10 +51,7 @@ public class AWSIoTMQTTProcessor extends GenericMQTTProcessor implements Transpo
     
     private String                                  m_aws_iot_gw_observe_notification_topic = null;
     private String                                  m_aws_iot_gw_coap_cmd_topic_base = null;
-    
-    private String                                  m_aws_iot_gw_name = null;
-    private String                                  m_aws_iot_gw_password_template = null;
-    
+        
     private HashMap<String,Object>                  m_aws_iot_gw_endpoints = null;
     private HashMap<String,TransportReceiveThread>  m_mqtt_thread_list = null;
         
@@ -78,13 +75,8 @@ public class AWSIoTMQTTProcessor extends GenericMQTTProcessor implements Transpo
         
         // initialize the listener thread map
         this.m_mqtt_thread_list = new HashMap<>();
-                        
-        // get our defaults
-        this.m_aws_iot_gw_name = this.orchestrator().preferences().valueOf("aws_iot_gw_name",this.m_suffix);
-        this.m_mqtt_host = this.orchestrator().preferences().valueOf("aws_iot_gw_mqtt_ip_address",this.m_suffix).replace("__IOT_EVENT_HUB__",this.m_aws_iot_gw_name);
-        
+                                
         // XXX
-        this.m_aws_iot_gw_name = "";
         this.m_mqtt_host = "AKCJTSNETHCZY.iot.us-east-1.amazonaws.com";
         
         // Observation notification topic
@@ -95,10 +87,7 @@ public class AWSIoTMQTTProcessor extends GenericMQTTProcessor implements Transpo
                          
         // AWSIoT Device Manager - will initialize and update our AWSIoT bindings/metadata
         this.m_aws_iot_gw_device_manager = new AWSIoTDeviceManager(this.orchestrator().errorLogger(),this.orchestrator().preferences(),this.m_suffix,http,this.orchestrator());
-                
-        // set the MQTT password template
-        this.m_aws_iot_gw_password_template = this.orchestrator().preferences().valueOf("aws_iot_gw_mqtt_password",this.m_suffix).replace("__IOT_EVENT_HUB__",this.m_aws_iot_gw_name);
-                             
+                                             
         // initialize our MQTT transport list
         this.initMQTTTransportList();
     }
