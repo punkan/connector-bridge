@@ -259,6 +259,9 @@ public class Utils {
     // create Authentication Hash
     public static String createHash(String data) {
         try {
+            if (data == null) {
+               return "none";
+            }
             MessageDigest md = MessageDigest.getInstance("SHA-256");
             byte[] digest = md.digest(data.getBytes());
             String hex = Hex.encodeHexString(digest);
