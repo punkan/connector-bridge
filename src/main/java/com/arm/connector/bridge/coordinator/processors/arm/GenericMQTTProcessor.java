@@ -142,7 +142,7 @@ public class GenericMQTTProcessor extends Processor implements Transport.Receive
     
     // attempt a json parse... 
     protected Map tryJSONParse(String payload) {
-        Map result = null;
+        Map result = new HashMap<String,Object>();
         try {
             result = this.orchestrator().getJSONParser().parseJson(payload);
             return result;

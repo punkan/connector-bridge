@@ -23,8 +23,6 @@
 
 package com.arm.connector.bridge.coordinator.processors.arm;
 
-import com.arm.connector.bridge.coordinator.processors.ibm.*;
-import com.arm.connector.bridge.coordinator.processors.arm.GenericMQTTProcessor;
 import com.arm.connector.bridge.coordinator.Orchestrator;
 import com.arm.connector.bridge.coordinator.processors.core.BasePeerProcessorFactory;
 import com.arm.connector.bridge.coordinator.processors.interfaces.PeerInterface;

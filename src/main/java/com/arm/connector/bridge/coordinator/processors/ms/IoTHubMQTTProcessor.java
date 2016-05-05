@@ -498,12 +498,18 @@ public class IoTHubMQTTProcessor extends GenericMQTTProcessor implements Transpo
         return this.getTopicElement(topic,"coap_verb");
     }
     
+    // get the CoAP URI from the MQTT topic
+    private String getCoAPURIFromTopic(String topic) {
+        // format: devices/__EPNAME__/messages/devicebound/coap_uri=....
+        return this.getTopicElement(topic,"coap_uri");
+    }
+    
     // get the resource URI from the message
     private String getCoAPURI(String message) {
         // expected format: { "path":"/303/0/5850", "new_value":"0", "ep":"mbed-eth-observe", "coap_verb": "get"}
         //this.errorLogger().info("getCoAPURI: payload: " + message);
         JSONParser parser = this.orchestrator().getJSONParser();
-        Map parsed = parser.parseJson(message);
+        Map parsed = this.tryJSONParse(message);
         return (String)parsed.get("path");
     }
     
@@ -512,7 +518,7 @@ public class IoTHubMQTTProcessor extends GenericMQTTProcessor implements Transpo
         // expected format: { "path":"/303/0/5850", "new_value":"0", "ep":"mbed-eth-observe" , "coap_verb": "get"}
         //this.errorLogger().info("getCoAPValue: payload: " + message);
         JSONParser parser = this.orchestrator().getJSONParser();
-        Map parsed = parser.parseJson(message);
+        Map parsed = this.tryJSONParse(message);
         return (String)parsed.get("new_value");
     }
     
@@ -521,7 +527,7 @@ public class IoTHubMQTTProcessor extends GenericMQTTProcessor implements Transpo
         // expected format: { "path":"/303/0/5850", "new_value":"0", "ep":"mbed-eth-observe", "coap_verb": "get" }
         //this.errorLogger().info("getCoAPValue: payload: " + message);
         JSONParser parser = this.orchestrator().getJSONParser();
-        Map parsed = parser.parseJson(message);
+        Map parsed = this.tryJSONParse(message);
         return (String)parsed.get("ep");
     }
     
@@ -530,7 +536,7 @@ public class IoTHubMQTTProcessor extends GenericMQTTProcessor implements Transpo
         // expected format: { "path":"/303/0/5850", "new_value":"0", "ep":"mbed-eth-observe", "coap_verb": "get" }
         //this.errorLogger().info("getCoAPValue: payload: " + message);
         JSONParser parser = this.orchestrator().getJSONParser();
-        Map parsed = parser.parseJson(message);
+        Map parsed = this.tryJSONParse(message);
         return (String)parsed.get("coap_verb");
     }
     
@@ -544,9 +550,16 @@ public class IoTHubMQTTProcessor extends GenericMQTTProcessor implements Transpo
         // format: devices/__EPNAME__/messages/devicebound/#
         String ep_name = this.getEndpointNameFromTopic(topic);
         
-        // pull the CoAP URI and Payload from the message itself... its JSON... 
+        // pull the CoAP Path URI from the message itself... its JSON... 
         // format: { "path":"/303/0/5850", "new_value":"0", "ep":"mbed-eth-observe", "coap_verb": "get" }
         String uri = this.getCoAPURI(message);
+        if (uri == null || uri.length() == 0) {
+            // optionally pull the CoAP URI Path from the MQTT topic (SECONDARY)
+            uri = this.getCoAPURIFromTopic(topic);
+        }
+        
+        // pull the CoAP Payload from the message itself... its JSON... 
+        // format: { "path":"/303/0/5850", "new_value":"0", "ep":"mbed-eth-observe", "coap_verb": "get" }
         String value = this.getCoAPValue(message);
         
         // pull the CoAP verb from the message itself... its JSON... (PRIMARY)
@@ -616,7 +629,7 @@ public class IoTHubMQTTProcessor extends GenericMQTTProcessor implements Transpo
     private String createObservation(String verb, String ep_name, String uri, String value) {
         Map notification = new HashMap<>();
         
-        // needs to look like this:  {"d":{"path":"/303/0/5700","payload":"MjkuNzU\u003d","max-age":"60","ep":"350e67be-9270-406b-8802-dd5e5f20ansond","value":"29.75"}}    
+        // needs to look like this: {"path":"/303/0/5700","payload":"MjkuNzU\u003d","max-age":"60","ep":"350e67be-9270-406b-8802-dd5e5f20ansond","value":"29.75"}    
         notification.put("value", value);
         notification.put("path", uri);
         notification.put("ep",ep_name);

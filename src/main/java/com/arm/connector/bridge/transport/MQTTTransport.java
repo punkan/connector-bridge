@@ -27,7 +27,27 @@ import com.arm.connector.bridge.core.Transport;
 import com.arm.connector.bridge.core.ErrorLogger;
 import com.arm.connector.bridge.core.Utils;
 import com.arm.connector.bridge.preferences.PreferenceManager;
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
 import java.io.EOFException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.security.KeyFactory;
+import java.security.KeyManagementException;
+import java.security.KeyStore;
+import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.SecureRandom;
+import java.security.cert.CertificateException;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
+import java.security.spec.PKCS8EncodedKeySpec;
+import javax.net.ssl.KeyManager;
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
 import org.fusesource.mqtt.client.BlockingConnection;
 import org.fusesource.mqtt.client.MQTT;
 import org.fusesource.mqtt.client.QoS;
@@ -60,6 +80,12 @@ public class MQTTTransport extends Transport {
     private Topic[] m_subscribe_topics = null;
     private String[] m_unsubscribe_topics = null;
     private boolean m_forced_ssl = false;
+    
+    private boolean m_use_pki = false;
+    private String m_pki_priv_key = null;
+    private String m_pki_pub_key = null;
+    private String m_pki_cert = null;
+    private SSLContext m_ssl_context = null;
     
     /**
      * Instance Factory
@@ -99,6 +125,101 @@ public class MQTTTransport extends Transport {
     public MQTTTransport(ErrorLogger error_logger, PreferenceManager preference_manager) {
         super(error_logger, preference_manager);
         this.m_suffix = null;
+        this.m_use_pki = false;
+        this.m_forced_ssl = false;
+        this.m_ssl_context = null;
+    }
+    
+    // reset to using username/passwords
+    public void useUserPass() {
+        this.useUserPass(null,null,null);
+    }
+    
+    // reset to using username/passwords
+    public void useUserPass(String username,String pw,String client_id) {
+        this.useUserPass(username,pw,client_id,false);
+    }
+    
+    // reset to using username/passwords
+    public void useUserPass(String username,String pw,String client_id,boolean use_ssl) {
+        this.m_use_pki = false;
+        this.m_ssl_context = null;
+        this.m_forced_ssl = use_ssl;
+        this.setUsername(username);
+        this.setPassword(pw);
+        this.setClientID(client_id);
+    }
+    
+    // utilize PKI certs
+    public void enablePKI(String priv_key,String pub_key,String certificate) {
+        this.m_pki_priv_key = priv_key;
+        this.m_pki_pub_key = pub_key;
+        this.m_pki_cert = certificate;
+        if (this.initializeSSLContext() == true) {
+            this.m_use_pki = true;
+            this.m_forced_ssl = true;
+        }
+        else {
+            this.m_pki_priv_key = null;
+            this.m_pki_pub_key = null;
+            this.m_pki_cert = null;
+            this.m_ssl_context = null;
+        }
+    }
+    
+    // convert to a X.509 Certificate
+    private X509Certificate getX509Certificate(String pem) throws CertificateException, IOException {
+        CertificateFactory cf = CertificateFactory.getInstance("X.509");
+        InputStream is = new ByteArrayInputStream( pem.getBytes()); 
+        X509Certificate cert = (X509Certificate)cf.generateCertificate(is);
+        return cert;
+    }
+    
+    // convert the PrivateKey
+    private PrivateKey getPrivateKey(String pem) throws Exception {
+          InputStream is = new ByteArrayInputStream(pem.getBytes());
+          DataInputStream dis = new DataInputStream(is);
+          byte[] keyBytes = new byte[(int)pem.length()];
+          dis.readFully(keyBytes);
+          dis.close();
+          is.close();
+          PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(keyBytes);
+          KeyFactory kf = KeyFactory.getInstance("RSA");
+          return kf.generatePrivate(spec);
+    }
+    
+    // convert the PublicKey
+    private PublicKey getPublicKey(String pem) throws Exception {
+          InputStream is = new ByteArrayInputStream(pem.getBytes());
+          DataInputStream dis = new DataInputStream(is);
+          byte[] keyBytes = new byte[(int)pem.length()];
+          dis.readFully(keyBytes);
+          dis.close();
+          is.close();
+          PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(keyBytes);
+          KeyFactory kf = KeyFactory.getInstance("RSA");
+          return kf.generatePublic(spec);
+    }
+    
+    // create the key manager
+    private KeyManager[] createKeyManager() throws NoSuchAlgorithmException {
+        KeyManager[] list = new KeyManager[0];
+       
+        return list;
+    }
+    
+    // initialize the SSL context
+    private boolean initializeSSLContext() {
+        try {
+            this.m_ssl_context = SSLContext.getInstance("TLS");
+            this.m_ssl_context.init(this.createKeyManager(), new TrustManager[]{new DefaultTrustManager()}, new SecureRandom());
+            return true;
+        }
+        catch (NoSuchAlgorithmException | KeyManagementException ex) {
+            // exception caught
+            this.errorLogger().critical("MQTTTransport: initializeSSLContext(PKI) failed. PKI DISABLED",ex);
+        }
+        return false;
     }
      
     // PUBLIC: Create the authentication hash
@@ -212,19 +333,30 @@ public class MQTTTransport extends Transport {
                     endpoint.setVersion(mqtt_version);
                 }
                 
-                // configure credentials and options...
-                String username = this.getUsername();
-                String pw = this.getPassword();
-                
-                // DEBUG
-                this.errorLogger().info("MQTTTransport: Username: [" + username + "] pw: [" + pw + "]");
-                
-                if (username != null && username.length() > 0 && username.equalsIgnoreCase("off") == false) {
-                    endpoint.setUserName(username);
+                if (this.m_use_pki == true) {
+                    // DEBUG
+                    this.errorLogger().info("MQTTTransport: PKI Cert/Keys Used");
+                    
+                    // PKI
+                    endpoint.setSslContext(this.m_ssl_context);
                 }
-                if (pw != null && pw.length() > 0 && pw.equalsIgnoreCase("off") == false) {
-                    endpoint.setPassword(pw);
+                else {
+                    // non-PKI: configure credentials
+                    String username = this.getUsername();
+                    String pw = this.getPassword();
+                    
+                    // DEBUG
+                    this.errorLogger().info("MQTTTransport: Username: [" + username + "] pw: [" + pw + "] Used");
+                
+                    if (username != null && username.length() > 0 && username.equalsIgnoreCase("off") == false) {
+                        endpoint.setUserName(username);
+                    }
+                    if (pw != null && pw.length() > 0 && pw.equalsIgnoreCase("off") == false) {
+                        endpoint.setPassword(pw);
+                    }
                 }
+                
+                // configure options... 
                 if (clientID != null && clientID.length() > 0 && clientID.equalsIgnoreCase("off") == false) {
                     endpoint.setClientId(clientID);
                 }
@@ -296,7 +428,12 @@ public class MQTTTransport extends Transport {
                             this.errorLogger().warning("MQTTTransport: Connection to: " + url + " successful");
                             this.m_connect_host = host;
                             this.m_connect_port = port;
-                            this.m_client_id = endpoint.getClientId().toString();
+                            if (endpoint.getClientId() != null) {
+                                this.m_client_id = endpoint.getClientId().toString();
+                            }
+                            else {
+                                this.m_client_id = null;
+                            }
                             this.m_connect_client_id = this.m_client_id;
                             this.m_connect_clean_session = clean_session;
                         }
@@ -315,8 +452,10 @@ public class MQTTTransport extends Transport {
                     this.errorLogger().warning("MQTT: URL: " + url);
                     this.errorLogger().warning("MQTT: clientID: " + this.m_client_id);
                     this.errorLogger().warning("MQTT: clean_session: " + clean_session);
-                    this.errorLogger().warning("MQTT: username: " + username);
-                    this.errorLogger().warning("MQTT: password: " + pw);
+                    if (this.m_use_pki == false) {
+                        this.errorLogger().warning("MQTT: username: " + this.getUsername());
+                        this.errorLogger().warning("MQTT: password: " + this.getPassword());
+                    }
                     this.errorLogger().warning("MQTT: host: " + host);
                     this.errorLogger().warning("MQTT: port: " + port);
                     
@@ -701,5 +840,21 @@ public class MQTTTransport extends Transport {
             this.m_host_url = prefix + host + ":" + port;
         }
         return this.m_host_url;
+    }
+    
+    // Trust manager
+    static class DefaultTrustManager implements X509TrustManager {    
+        @Override
+        public void checkClientTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
+        }
+
+        @Override
+        public void checkServerTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
+        }   
+        
+        @Override
+        public X509Certificate[] getAcceptedIssuers() {
+            return new X509Certificate[0];
+        }
     }
 }

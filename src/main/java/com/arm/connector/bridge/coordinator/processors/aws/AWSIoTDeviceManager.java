@@ -31,6 +31,7 @@ import com.arm.connector.bridge.transport.HttpTransport;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -76,6 +77,11 @@ public class AWSIoTDeviceManager extends BaseClass {
     
     // get the orchestrator
     private Orchestrator orchestrator() { return this.m_orchestrator; }
+    
+    // get our endpoint details
+    public HashMap<String,String> getEndpointDetails(String ep_name) {
+        return this.m_endpoint_details.get(ep_name);
+    }
     
     // process new device registration
     public boolean registerNewDevice(Map message) {
@@ -137,13 +143,26 @@ public class AWSIoTDeviceManager extends BaseClass {
     
     // unlink the certificate from the Thing Record
     private void unlinkCertificateFromThing(HashMap<String,String> ep) {
-        String args = "iot detach-thing-principal --thing-name=" + (String)ep.get("thingName") + " --principal=" + (String)ep.get("certificateArn");
+        this.unlinkCertificateFromThing((String)ep.get("thingName"),(String)ep.get("certificateArn"));
+    }
+    
+    // unlink the certificate from the Thing Record
+    private void unlinkCertificateFromThing(String ep_name,String arn) {
+        String ep_qual = "--thing-name=" + ep_name;
+        if (ep_name == null) ep_qual = "";
+        
+        String args = "iot detach-thing-principal " + ep_qual + " --principal=" + arn;
         Utils.awsCLI(this.errorLogger(), args);
     }
     
     // unlink the certificate from the Policy
     private void unlinkCertificateFromPolicy(HashMap<String,String> ep) {
-        String args = "iot detach-principal-policy --policy-name=" + this.m_policy_name + " --principal=" + (String)ep.get("certificateArn");
+        this.unlinkCertificateFromPolicy((String)ep.get("certificateArn"));
+    }
+    
+    // unlink the certificate from the Policy
+    private void unlinkCertificateFromPolicy(String arn) {
+        String args = "iot detach-principal-policy --policy-name=" + this.m_policy_name + " --principal=" + arn;
         Utils.awsCLI(this.errorLogger(), args);
     }
     
@@ -185,7 +204,7 @@ public class AWSIoTDeviceManager extends BaseClass {
     // unlink a certificate from the policy and thing record, then deactivate it
     private void removeCertificate(String device) {
         // Get our record 
-        HashMap<String,String> ep = this.m_endpoint_details.get(device);
+        HashMap<String,String> ep = this.getEndpointDetails(device);
         if (ep != null) {
             // unlink the certificate from the thing record
             this.unlinkCertificateFromThing(ep);
@@ -250,7 +269,7 @@ public class AWSIoTDeviceManager extends BaseClass {
     
     // get a given device's details...
     private HashMap<String,String> getDeviceDetails(String device) {
-        HashMap<String,String> ep = this.m_endpoint_details.get(device);
+        HashMap<String,String> ep = this.getEndpointDetails(device);
         
         // if we dont already have it, go get it... 
         if (ep == null) {
@@ -369,23 +388,6 @@ public class AWSIoTDeviceManager extends BaseClass {
         //this.errorLogger().info("createKeysAndCerts: EP: " + ep);
     } 
     
-    // delete given key and cert
-    private void deleteCertificate(int index) {
-        if (index >= 0) {
-            // delete the certficate from AWS IoT
-            String doomed = this.m_keys_cert_ids.get(index);
-            
-            // deactivate
-            this.inactivateCertificate(doomed);
-            
-            // delete
-            this.deleteCertificate(doomed);
-
-            // purge the certificate from the cache
-            this.m_keys_cert_ids.remove(index);
-        }
-    }
-    
     // get our current defaulted policy
     private String getDefaultPolicy() {
         // AWS CLI invocation...
@@ -480,6 +482,9 @@ public class AWSIoTDeviceManager extends BaseClass {
             // create the keys/certs and link it to the default policy and device
             this.createKeysAndCertsAndLinkToPolicyAndThing(ep);
             
+            // capture the endpoint address
+            this.captureEndpointAddress(ep);
+            
             // save off the details
             this.saveDeviceDetails(device, ep);
         }
@@ -492,49 +497,79 @@ public class AWSIoTDeviceManager extends BaseClass {
     // save device details
     public void saveDeviceDetails(String device,HashMap<String,String> entry) {
         // don't overwrite an existing entry..
-        if (this.m_endpoint_details.get(device) == null) {
-            // DEBUG
-            //this.errorLogger().info("saveDeviceDetails: saving " + device + ": " + entry);
-
+        if (this.getEndpointDetails(device) == null) {
             // save off the endpoint details
             this.m_endpoint_details.put(device,entry);
         }
     }
     
     // is this cert_id used by one of the existing devices?
-    private boolean isUnusedKeyCert(String id) {
-        boolean unused = true;
+    private boolean isUsedCert(String id) {
+        boolean found = false;
+        for(int i=0;i<this.m_keys_cert_ids.size() && !found && id != null && id.length() > 0;++i) {
+            if (id.equalsIgnoreCase(this.m_keys_cert_ids.get(i))) {
+                found = true;
+            }
+        }
+        return found;
+    }
+    
+    // get our list of certificates
+    private ArrayList<HashMap<String,String>> getRegisteredCertificates() {
+        ArrayList<HashMap<String,String>> list = new ArrayList<>();
         
-        if (id != null && id.length() > 0) {
-            Iterator it = this.m_endpoint_details.entrySet().iterator();
-            while (it.hasNext() && unused == true) {
-                Map.Entry pair = (Map.Entry)it.next();
-                HashMap<String,String> ep = (HashMap<String,String>)pair.getValue();
-                if (id.equalsIgnoreCase((String)ep.get("certificateId")) == true) {
-                    unused = false;
-                }
+        // AWS IoT CLI
+        String args = "iot list-certificates";
+        String json = Utils.awsCLI(this.errorLogger(), args);
+        
+        // parse and process the result
+        if (json != null && json.length() > 0) {
+            Map parsed = this.m_orchestrator.getJSONParser().parseJson(json);
+            List cert_list = (List)parsed.get("certificates");
+            for(int i=0;cert_list != null && i<cert_list.size();++i) {
+                Map entry = (Map)cert_list.get(i);
+                HashMap<String,String> cert = new HashMap<>();
+                cert.put("certificateId",(String)entry.get("certificateId"));
+                cert.put("certificateArn",(String)entry.get("certificateArn"));
+                list.add(cert);
             }
         }
         
-        return unused;
+        // DEBUG
+        this.errorLogger().info("getRegisteredCertificates(" + list.size() + "): " + list);
+        
+        // return the list
+        return list;
     }
     
     // clear out any stale Keys and Certs
     public void clearOrhpanedKeysAndCerts() {
-        for(int i=0;i<this.m_keys_cert_ids.size();++i) {
+        ArrayList<HashMap<String,String>> cert_list = this.getRegisteredCertificates();
+        for(int i=0;i<cert_list.size();++i) {
             // get the certificate ID
-            String cert_id = this.m_keys_cert_ids.get(i);
+            HashMap<String,String> cert = cert_list.get(i);
+            String cert_id = cert.get("certificateId");
+            String cert_arn = cert.get("certificateArn");
+            
+            // get the device
             
             // if NOT present in any of the device entries... kill it
-            if (this.isUnusedKeyCert(cert_id) == true) {
-                this.deleteCertificate(i);
+            if (this.isUsedCert(cert_id) == false) {
+                // unlink the certificate from the thing record
+                this.unlinkCertificateFromThing(null,cert_arn);
+            
+                // unlink the certificate from the thing record
+                this.unlinkCertificateFromPolicy(cert_arn);
+            
+                // inactivate
+                this.inactivateCertificate(cert_id);
+                
+                // delete
+                this.deleteCertificate(cert_id);
+                
+                // purge the certificate from the cache
+                this.m_keys_cert_ids.remove(this.getKeyAndCertIndex(cert_id));
             }
         }
-    }
-    
-    // create a MQTT Password for a given device
-    public String createMQTTPassword(String device) {
-        // XXX TO DO
-        return null;
     }
 }

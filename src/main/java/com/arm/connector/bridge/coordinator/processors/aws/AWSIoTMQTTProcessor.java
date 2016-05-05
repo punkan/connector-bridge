@@ -49,8 +49,11 @@ public class AWSIoTMQTTProcessor extends GenericMQTTProcessor implements Transpo
     private String                                  m_observation_type = "observation";
     private String                                  m_async_response_type = "cmd-response";
     
-    private String                                  m_aws_iot_gw_observe_notification_topic = null;
-    private String                                  m_aws_iot_gw_coap_cmd_topic_base = null;
+    private String                                  m_aws_iot_observe_notification_topic = null;
+    private String                                  m_aws_iot_coap_cmd_topic_get = null;
+    private String                                  m_aws_iot_coap_cmd_topic_put = null;
+    private String                                  m_aws_iot_coap_cmd_topic_post = null;
+    private String                                  m_aws_iot_coap_cmd_topic_delete = null;
         
     private HashMap<String,Object>                  m_aws_iot_gw_endpoints = null;
     private HashMap<String,TransportReceiveThread>  m_mqtt_thread_list = null;
@@ -77,10 +80,13 @@ public class AWSIoTMQTTProcessor extends GenericMQTTProcessor implements Transpo
         this.m_mqtt_thread_list = new HashMap<>();
         
         // Observation notification topic
-        this.m_aws_iot_gw_observe_notification_topic = this.orchestrator().preferences().valueOf("aws_iot_gw_observe_notification_topic",this.m_suffix) + this.m_observation_type; 
+        this.m_aws_iot_observe_notification_topic = this.orchestrator().preferences().valueOf("aws_iot_observe_notification_topic",this.m_suffix); 
         
         // Send CoAP commands back through mDS into the endpoint via these Topics... 
-        this.m_aws_iot_gw_coap_cmd_topic_base = this.orchestrator().preferences().valueOf("aws_iot_gw_coap_cmd_topic",this.m_suffix).replace("__COMMAND_TYPE__","#");
+        this.m_aws_iot_coap_cmd_topic_get = this.orchestrator().preferences().valueOf("aws_iot_coap_cmd_topic",this.m_suffix).replace("__COMMAND_TYPE__","get");
+        this.m_aws_iot_coap_cmd_topic_put = this.orchestrator().preferences().valueOf("aws_iot_coap_cmd_topic",this.m_suffix).replace("__COMMAND_TYPE__","put");
+        this.m_aws_iot_coap_cmd_topic_post = this.orchestrator().preferences().valueOf("aws_iot_coap_cmd_topic",this.m_suffix).replace("__COMMAND_TYPE__","post");
+        this.m_aws_iot_coap_cmd_topic_delete = this.orchestrator().preferences().valueOf("aws_iot_coap_cmd_topic",this.m_suffix).replace("__COMMAND_TYPE__","delete");
                          
         // AWSIoT Device Manager - will initialize and update our AWSIoT bindings/metadata
         this.m_aws_iot_gw_device_manager = new AWSIoTDeviceManager(this.orchestrator().errorLogger(),this.orchestrator().preferences(),this.m_suffix,http,this.orchestrator());
@@ -92,7 +98,7 @@ public class AWSIoTMQTTProcessor extends GenericMQTTProcessor implements Transpo
     // get our defaulted reply topic
     @Override
     public String getReplyTopic(String ep_name,String ep_type,String def){
-        return this.customizeTopic(this.m_aws_iot_gw_observe_notification_topic,ep_name,ep_type).replace(this.m_observation_type, this.m_async_response_type);
+        return this.customizeTopic(this.m_aws_iot_observe_notification_topic,ep_name,ep_type).replace(this.m_observation_type, this.m_async_response_type);
     }
  
     // we have to override the creation of the authentication hash.. it has to be dependent on a given endpoint name
@@ -119,9 +125,14 @@ public class AWSIoTMQTTProcessor extends GenericMQTTProcessor implements Transpo
     
     // Connection to AWSIoT MQTT vs. generic MQTT...
     private boolean connect(String ep_name) {
+        return this.connect(ep_name,ep_name);
+    }
+    
+    // Connection to AWSIoT MQTT vs. generic MQTT...
+    private boolean connect(String ep_name,String client_id) {
         // if not connected attempt
         if (!this.isConnected(ep_name)) {
-            if (this.mqtt(ep_name).connect(this.m_mqtt_host,this.m_mqtt_port,ep_name,this.m_use_clean_session)) {
+            if (this.mqtt(ep_name).connect(this.m_mqtt_host,this.m_mqtt_port,client_id,this.m_use_clean_session)) {
                 this.orchestrator().errorLogger().info("AWSIoT: Setting CoAP command listener...");
                 this.mqtt(ep_name).setOnReceiveListener(this);
                 this.orchestrator().errorLogger().info("AWSIoT: connection completed successfully");
@@ -163,6 +174,9 @@ public class AWSIoTMQTTProcessor extends GenericMQTTProcessor implements Transpo
                 // add in a decoded payload value as a string type...
                 notification.put("value", decoded_coap_payload);
             }
+            
+            // get the path
+            String path = (String)notification.get("path");
                         
             // we will send the raw CoAP JSON... AWSIoT can parse that... 
             String coap_raw_json = this.jsonGenerator().generateJson(notification);
@@ -173,6 +187,9 @@ public class AWSIoTMQTTProcessor extends GenericMQTTProcessor implements Transpo
             // get our endpoint name
             String ep_name = (String)notification.get("ep");
             
+            // get our endpoint type
+            String ep_type = this.getTypeFromEndpointName(ep_name);
+            
             // encapsulate into a coap/device packet...
             String aws_iot_gw_coap_json = coap_json_stripped;
                                     
@@ -182,7 +199,8 @@ public class AWSIoTMQTTProcessor extends GenericMQTTProcessor implements Transpo
             
             // send to AWSIoT...
             if (this.mqtt(ep_name) != null) {
-                boolean status = this.mqtt(ep_name).sendMessage(this.customizeTopic(this.m_aws_iot_gw_observe_notification_topic,ep_name,null),aws_iot_gw_coap_json,QoS.AT_MOST_ONCE);           
+                String topic = this.customizeTopic(this.m_aws_iot_observe_notification_topic,ep_name,ep_type) + path;
+                boolean status = this.mqtt(ep_name).sendMessage(topic,aws_iot_gw_coap_json,QoS.AT_MOST_ONCE);           
                 if (status == true) {
                     // not connected
                     this.errorLogger().info("AWSIoT: CoAP notification sent. SUCCESS");
@@ -307,16 +325,20 @@ public class AWSIoTMQTTProcessor extends GenericMQTTProcessor implements Transpo
     // create the endpoint AWSIoT topic data
     private HashMap<String,Object> createEndpointTopicData(String ep_name,String ep_type) {
         HashMap<String,Object> topic_data = null;
-        if (this.m_aws_iot_gw_coap_cmd_topic_base != null) {
-            Topic[] list = new Topic[NUM_COAP_TOPICS];
-            String[] topic_string_list = new String[NUM_COAP_TOPICS];
-            topic_string_list[0] = this.customizeTopic(this.m_aws_iot_gw_coap_cmd_topic_base,ep_name,ep_type);
-            for(int i=0;i<NUM_COAP_TOPICS;++i) {
+        if (this.m_aws_iot_coap_cmd_topic_get != null) {
+            Topic[] list = new Topic[NUM_COAP_VERBS];
+            String[] topic_string_list = new String[NUM_COAP_VERBS];
+            topic_string_list[0] = this.customizeTopic(this.m_aws_iot_coap_cmd_topic_get,ep_name,ep_type);
+            topic_string_list[1] = this.customizeTopic(this.m_aws_iot_coap_cmd_topic_put,ep_name,ep_type);
+            topic_string_list[2] = this.customizeTopic(this.m_aws_iot_coap_cmd_topic_post,ep_name,ep_type);
+            topic_string_list[3] = this.customizeTopic(this.m_aws_iot_coap_cmd_topic_delete,ep_name,ep_type);
+            for(int i=0;i<NUM_COAP_VERBS;++i) {
                 list[i] = new Topic(topic_string_list[i],QoS.AT_LEAST_ONCE);
             }
             topic_data = new HashMap<>();
             topic_data.put("topic_list",list);
             topic_data.put("topic_string_list",topic_string_list);
+            topic_data.put("ep_type",ep_type);
         }
         return topic_data;
     }
@@ -368,7 +390,7 @@ public class AWSIoTMQTTProcessor extends GenericMQTTProcessor implements Transpo
     private void subscribe(String ep_name,String ep_type) {
         if (ep_name != null && this.validateMQTTConnection(ep_name,ep_type)) {
             // DEBUG
-            this.orchestrator().errorLogger().info("AWSIoT: Subscribing to CoAP command topics for endpoint: " + ep_name);
+            this.orchestrator().errorLogger().info("AWSIoT: Subscribing to CoAP command topics for endpoint: " + ep_name + " type: " + ep_type);
             try {
                 HashMap<String,Object> topic_data = this.createEndpointTopicData(ep_name,ep_type);
                 if (topic_data != null) {
@@ -476,16 +498,41 @@ public class AWSIoTMQTTProcessor extends GenericMQTTProcessor implements Transpo
         return value;
     }
     
+    // create the URI path from the topic
+    private String getURIPathFromTopic(String topic) {
+        String value = "";
+        try {
+            // split by forward slash
+            String tmp_slash[] = topic.split("/");
+            
+            // we now re-assemble starting from a specific index
+            for(int i=5;tmp_slash.length > 5 && i<tmp_slash.length;++i) {
+                value = value + "/" + tmp_slash[i];
+            }
+        }
+        catch (Exception ex) {
+            // Exception during parse
+            this.errorLogger().info("WARNING: getURIPathFromTopic: Exception: " + ex.getMessage());
+        }
+        return value;
+    }
+    
     // get the endpoint name from the MQTT topic
     private String getEndpointNameFromTopic(String topic) {
-        // format: devices/__EPNAME__/messages/devicebound/#
-        return this.getTopicElement(topic,1);
+        // format: mbed/__DEVICE_TYPE__/__EPNAME__/coap/__COMMAND_TYPE__/#
+        return this.getTopicElement(topic,2);
     }
     
     // get the CoAP verb from the MQTT topic
     private String getCoAPVerbFromTopic(String topic) {
-        // format: devices/__EPNAME__/messages/devicebound/coap_verb=put....
-        return this.getTopicElement(topic,"coap_verb");
+        // format: mbed/__DEVICE_TYPE__/__EPNAME__/coap/__COMMAND_TYPE__/#
+        return this.getTopicElement(topic,4);
+    }
+    
+    // get the CoAP URI from the MQTT topic
+    private String getCoAPURIFromTopic(String topic) {
+        // format: mbed/__DEVICE_TYPE__/__EPNAME__/coap/__COMMAND_TYPE__/<uri path>
+        return this.getURIPathFromTopic(topic);
     }
     
     // get the resource URI from the message
@@ -493,7 +540,7 @@ public class AWSIoTMQTTProcessor extends GenericMQTTProcessor implements Transpo
         // expected format: { "path":"/303/0/5850", "new_value":"0", "ep":"mbed-eth-observe", "coap_verb": "get"}
         //this.errorLogger().info("getCoAPURI: payload: " + message);
         JSONParser parser = this.orchestrator().getJSONParser();
-        Map parsed = parser.parseJson(message);
+        Map parsed = this.tryJSONParse(message);
         return (String)parsed.get("path");
     }
     
@@ -502,7 +549,7 @@ public class AWSIoTMQTTProcessor extends GenericMQTTProcessor implements Transpo
         // expected format: { "path":"/303/0/5850", "new_value":"0", "ep":"mbed-eth-observe" , "coap_verb": "get"}
         //this.errorLogger().info("getCoAPValue: payload: " + message);
         JSONParser parser = this.orchestrator().getJSONParser();
-        Map parsed = parser.parseJson(message);
+        Map parsed = this.tryJSONParse(message);
         return (String)parsed.get("new_value");
     }
     
@@ -511,7 +558,7 @@ public class AWSIoTMQTTProcessor extends GenericMQTTProcessor implements Transpo
         // expected format: { "path":"/303/0/5850", "new_value":"0", "ep":"mbed-eth-observe", "coap_verb": "get" }
         //this.errorLogger().info("getCoAPValue: payload: " + message);
         JSONParser parser = this.orchestrator().getJSONParser();
-        Map parsed = parser.parseJson(message);
+        Map parsed = this.tryJSONParse(message);
         return (String)parsed.get("ep");
     }
     
@@ -520,7 +567,7 @@ public class AWSIoTMQTTProcessor extends GenericMQTTProcessor implements Transpo
         // expected format: { "path":"/303/0/5850", "new_value":"0", "ep":"mbed-eth-observe", "coap_verb": "get" }
         //this.errorLogger().info("getCoAPValue: payload: " + message);
         JSONParser parser = this.orchestrator().getJSONParser();
-        Map parsed = parser.parseJson(message);
+        Map parsed = this.tryJSONParse(message);
         return (String)parsed.get("coap_verb");
     }
     
@@ -531,12 +578,22 @@ public class AWSIoTMQTTProcessor extends GenericMQTTProcessor implements Transpo
         this.errorLogger().info("AWSIoT(CoAP Command): Topic: " + topic + " message: " + message);
         
         // parse the topic to get the endpoint
-        // format: devices/__EPNAME__/messages/devicebound/#
+        // format: mbed/__DEVICE_TYPE__/__EPNAME__/coap/__COMMAND_TYPE__/#
         String ep_name = this.getEndpointNameFromTopic(topic);
         
-        // pull the CoAP URI and Payload from the message itself... its JSON... 
+        // parse the topic to get the endpoint type
+        String ep_type = this.getTypeFromEndpointName(ep_name);
+        
+        // pull the CoAP Path URI from the message itself... its JSON... 
         // format: { "path":"/303/0/5850", "new_value":"0", "ep":"mbed-eth-observe", "coap_verb": "get" }
         String uri = this.getCoAPURI(message);
+        if (uri == null || uri.length() == 0) {
+            // optionally pull the CoAP URI Path from the MQTT topic (SECONDARY)
+            uri = this.getCoAPURIFromTopic(topic);
+        }
+        
+        // pull the CoAP Payload from the message itself... its JSON... 
+        // format: { "path":"/303/0/5850", "new_value":"0", "ep":"mbed-eth-observe", "coap_verb": "get" }
         String value = this.getCoAPValue(message);
         
         // pull the CoAP verb from the message itself... its JSON... (PRIMARY)
@@ -584,7 +641,7 @@ public class AWSIoTMQTTProcessor extends GenericMQTTProcessor implements Transpo
                 
                 // send the observation (GET reply)...
                 if (this.mqtt(ep_name) != null) {
-                    boolean status = this.mqtt(ep_name).sendMessage(this.customizeTopic(this.m_aws_iot_gw_observe_notification_topic,ep_name,null),observation,QoS.AT_MOST_ONCE); 
+                    boolean status = this.mqtt(ep_name).sendMessage(this.customizeTopic(this.m_aws_iot_observe_notification_topic,ep_name,ep_type),observation,QoS.AT_MOST_ONCE); 
                     if (status == true) {
                         // success
                         this.errorLogger().info("AWSIoT(CoAP Command): CoAP observation(get) sent. SUCCESS");
@@ -609,7 +666,7 @@ public class AWSIoTMQTTProcessor extends GenericMQTTProcessor implements Transpo
     private String createObservation(String verb, String ep_name, String uri, String value) {
         Map notification = new HashMap<>();
         
-        // needs to look like this:  {"d":{"path":"/303/0/5700","payload":"MjkuNzU\u003d","max-age":"60","ep":"350e67be-9270-406b-8802-dd5e5f20ansond","value":"29.75"}}    
+        // needs to look like this:  {"path":"/303/0/5700","payload":"MjkuNzU\u003d","max-age":"60","ep":"350e67be-9270-406b-8802-dd5e5f20ansond","value":"29.75"}    
         notification.put("value", value);
         notification.put("path", uri);
         notification.put("ep",ep_name);
@@ -680,7 +737,7 @@ public class AWSIoTMQTTProcessor extends GenericMQTTProcessor implements Transpo
         // see if we already have a connection for this endpoint...
         if (this.mqtt(ep_name) == null) {
             // create a MQTT connection for this endpoint... 
-            // XXX this.createAndStartMQTTForEndpoint(ep_name,ep_type);
+            this.createAndStartMQTTForEndpoint(ep_name,ep_type);
         }
         
         // return our connection status
@@ -739,18 +796,22 @@ public class AWSIoTMQTTProcessor extends GenericMQTTProcessor implements Transpo
             // create a new MQTT Transport instance
             MQTTTransport mqtt = new MQTTTransport(this.errorLogger(),this.preferences());
 
-            // MQTT username is based upon the device ID (endpoint_name)
+            // get our endpoint details
+            HashMap<String,String> ep = this.m_aws_iot_gw_device_manager.getEndpointDetails(ep_name);
+                        
+            // AWSIoT only works with PKI
+            mqtt.enablePKI(ep.get("PrivateKey"),ep.get("PublicKey"),ep.get("certificatePem"));
             
-            // XXX 
-            String username = null; // this.orchestrator().preferences().valueOf("aws_iot_gw_mqtt_username",this.m_suffix).replace("__IOT_EVENT_HUB__",this.m_aws_iot_gw_name).replace("__EPNAME__",ep_name);
-
-            // set the creds for this MQTT Transport instance
-            mqtt.setClientID(ep_name);
-            mqtt.setUsername(username);
-            mqtt.setPassword(this.m_aws_iot_gw_device_manager.createMQTTPassword(ep_name));
+            // set the AWSIoT endpoint address
+            this.m_mqtt_host = ep.get("endpointAddress");
             
-            // AWSIoT only works with SSL... so force it
-            mqtt.forceSSLUsage(true);
+            // ClientID is the endpoint name
+            String client_id = ep_name;
+            
+            // DEBUG override for testing internally... do not enable
+            //this.m_mqtt_host = "192.168.1.213";
+            //client_id = null;
+            //mqtt.useUserPass();
 
             // add it to the list indexed by the endpoint name... not the clientID...
             this.addMQTTTransport(ep_name,mqtt);
@@ -759,7 +820,7 @@ public class AWSIoTMQTTProcessor extends GenericMQTTProcessor implements Transpo
             this.errorLogger().info("AWSIoT: connecting to MQTT for endpoint: " + ep_name + " type: " + ep_type + "...");
 
             // connect and start listening... 
-            if (this.connect(ep_name) == true) {
+            if (this.connect(ep_name,client_id) == true) {
                 // DEBUG
                 this.errorLogger().info("AWSIoT: connected to MQTT. Creating and registering listener Thread for endpoint: " + ep_name + " type: " + ep_type);
 
@@ -793,5 +854,17 @@ public class AWSIoTMQTTProcessor extends GenericMQTTProcessor implements Transpo
             // already connected... just ignore
             this.errorLogger().info("AWSIoT: already have connection for " + ep_name + " (OK)");
         }
+    }
+    
+    // get the endpoint type from the endpoint name
+    private String getTypeFromEndpointName(String ep_name) {
+        String ep_type = null;
+        
+        HashMap<String,Object> entry = (HashMap<String,Object>)this.m_aws_iot_gw_endpoints.get(ep_name);
+        if (entry != null) {
+            ep_type = (String)entry.get("ep_type");
+        }
+        
+        return ep_type;
     }
 }

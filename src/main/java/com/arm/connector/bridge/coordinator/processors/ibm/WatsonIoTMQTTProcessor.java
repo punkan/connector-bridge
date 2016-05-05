@@ -580,7 +580,7 @@ public class WatsonIoTMQTTProcessor extends GenericMQTTProcessor implements Tran
         // expected format: { "path":"/303/0/5850", "new_value":"0", "ep":"mbed-eth-observe", "coap_verb": "get" }
         //this.errorLogger().info("getCoAPURI: payload: " + message);
         JSONParser parser = this.orchestrator().getJSONParser();
-        Map parsed = parser.parseJson(message);
+        Map parsed = this.tryJSONParse(message);
         return (String)parsed.get("path");
     }
     
@@ -589,7 +589,7 @@ public class WatsonIoTMQTTProcessor extends GenericMQTTProcessor implements Tran
         // expected format: { "path":"/303/0/5850", "new_value":"0", "ep":"mbed-eth-observe", "coap_verb": "get" }
         //this.errorLogger().info("getCoAPValue: payload: " + message);
         JSONParser parser = this.orchestrator().getJSONParser();
-        Map parsed = parser.parseJson(message);
+        Map parsed = this.tryJSONParse(message);
         return (String)parsed.get("new_value");
     }
     
@@ -598,7 +598,7 @@ public class WatsonIoTMQTTProcessor extends GenericMQTTProcessor implements Tran
         // expected format: { "path":"/303/0/5850", "new_value":"0", "ep":"mbed-eth-observe", "coap_verb": "get" }
         //this.errorLogger().info("getCoAPValue: payload: " + message);
         JSONParser parser = this.orchestrator().getJSONParser();
-        Map parsed = parser.parseJson(message);
+        Map parsed = this.tryJSONParse(message);
         return (String)parsed.get("ep");
     }
     
@@ -607,7 +607,7 @@ public class WatsonIoTMQTTProcessor extends GenericMQTTProcessor implements Tran
         // expected format: { "path":"/303/0/5850", "new_value":"0", "ep":"mbed-eth-observe", "coap_verb": "get" }
         //this.errorLogger().info("getCoAPValue: payload: " + message);
         JSONParser parser = this.orchestrator().getJSONParser();
-        Map parsed = parser.parseJson(message);
+        Map parsed = this.tryJSONParse(message);
         return (String)parsed.get("coap_verb");
     }
     
