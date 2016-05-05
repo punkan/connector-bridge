@@ -75,9 +75,6 @@ public class AWSIoTMQTTProcessor extends GenericMQTTProcessor implements Transpo
         
         // initialize the listener thread map
         this.m_mqtt_thread_list = new HashMap<>();
-                                
-        // XXX
-        this.m_mqtt_host = "AKCJTSNETHCZY.iot.us-east-1.amazonaws.com";
         
         // Observation notification topic
         this.m_aws_iot_gw_observe_notification_topic = this.orchestrator().preferences().valueOf("aws_iot_gw_observe_notification_topic",this.m_suffix) + this.m_observation_type; 
