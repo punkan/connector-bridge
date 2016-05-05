@@ -82,7 +82,11 @@ public class AWSIoTMQTTProcessor extends GenericMQTTProcessor implements Transpo
         // get our defaults
         this.m_aws_iot_gw_name = this.orchestrator().preferences().valueOf("aws_iot_gw_name",this.m_suffix);
         this.m_mqtt_host = this.orchestrator().preferences().valueOf("aws_iot_gw_mqtt_ip_address",this.m_suffix).replace("__IOT_EVENT_HUB__",this.m_aws_iot_gw_name);
-                
+        
+        // XXX
+        this.m_aws_iot_gw_name = "";
+        this.m_mqtt_host = "AKCJTSNETHCZY.iot.us-east-1.amazonaws.com";
+        
         // Observation notification topic
         this.m_aws_iot_gw_observe_notification_topic = this.orchestrator().preferences().valueOf("aws_iot_gw_observe_notification_topic",this.m_suffix) + this.m_observation_type; 
         
@@ -610,6 +614,9 @@ public class AWSIoTMQTTProcessor extends GenericMQTTProcessor implements Transpo
                 }
             }
         }
+        
+        //house cleaning
+        this.m_aws_iot_gw_device_manager.clearOrhpanedKeysAndCerts();
     }
     
     // create an observation JSON as a response to a GET request...
@@ -687,7 +694,7 @@ public class AWSIoTMQTTProcessor extends GenericMQTTProcessor implements Transpo
         // see if we already have a connection for this endpoint...
         if (this.mqtt(ep_name) == null) {
             // create a MQTT connection for this endpoint... 
-            this.createAndStartMQTTForEndpoint(ep_name,ep_type);
+            // XXX this.createAndStartMQTTForEndpoint(ep_name,ep_type);
         }
         
         // return our connection status
@@ -747,7 +754,9 @@ public class AWSIoTMQTTProcessor extends GenericMQTTProcessor implements Transpo
             MQTTTransport mqtt = new MQTTTransport(this.errorLogger(),this.preferences());
 
             // MQTT username is based upon the device ID (endpoint_name)
-            String username = this.orchestrator().preferences().valueOf("aws_iot_gw_mqtt_username",this.m_suffix).replace("__IOT_EVENT_HUB__",this.m_aws_iot_gw_name).replace("__EPNAME__",ep_name);
+            
+            // XXX 
+            String username = null; // this.orchestrator().preferences().valueOf("aws_iot_gw_mqtt_username",this.m_suffix).replace("__IOT_EVENT_HUB__",this.m_aws_iot_gw_name).replace("__EPNAME__",ep_name);
 
             // set the creds for this MQTT Transport instance
             mqtt.setClientID(ep_name);

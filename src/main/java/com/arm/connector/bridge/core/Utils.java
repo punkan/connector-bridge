@@ -310,4 +310,55 @@ public class Utils {
         }
         return Utils._externalIPAddress;
     }
+    
+    // convert a InputStream to a String
+    public static String convertStreamToString(java.io.InputStream is) {
+        java.util.Scanner s = new java.util.Scanner(is).useDelimiter("\\A");
+        return s.hasNext() ? s.next() : "";
+    }
+    
+    /**
+     * Execute the AWS CLI
+     * @param logger - ErrorLogger instance
+     * @param args - arguments for the AWS CLI 
+     */
+    public static String awsCLI(ErrorLogger logger,String args) {
+       // construct the arguments
+       String cmd = "./aws " + args;
+       String response = null;
+       String error = null;
+       
+       try {
+           // invoke the AWS CLI
+           Process proc = Runtime.getRuntime().exec(cmd);
+           response = Utils.convertStreamToString(proc.getInputStream());
+           error= Utils.convertStreamToString(proc.getErrorStream());
+           
+           // wait to completion
+           proc.waitFor();
+           int status = proc.exitValue();
+           
+           // DEBUG
+           if (status != 0) {
+               // non-zero exit status
+               logger.warning("AWS CLI: Invoked: " + cmd);
+               logger.warning("AWS CLI: Response: " + response);
+               logger.warning("AWS CLI: Errors: " + error);
+               logger.warning("AWS CLI: Exit Code: " + status);
+           }
+           else {
+               // successful exit status
+               logger.info("AWS CLI: Invoked: " + cmd);
+               logger.info("AWS CLI: Response: " + response);
+               logger.info("AWS CLI: Exit Code: " + status);
+           }
+       } 
+       catch (Exception ex) {
+           logger.warning("AWS CLI: Exception for command: " + cmd,ex);
+           response = null;
+       }
+       
+       // return the resposne
+       return response;
+   }
 }

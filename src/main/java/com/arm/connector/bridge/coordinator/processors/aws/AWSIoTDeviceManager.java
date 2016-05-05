@@ -25,9 +25,12 @@ package com.arm.connector.bridge.coordinator.processors.aws;
 import com.arm.connector.bridge.coordinator.Orchestrator;
 import com.arm.connector.bridge.core.BaseClass;
 import com.arm.connector.bridge.core.ErrorLogger;
+import com.arm.connector.bridge.core.Utils;
 import com.arm.connector.bridge.preferences.PreferenceManager;
 import com.arm.connector.bridge.transport.HttpTransport;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 
 /**
@@ -39,12 +42,12 @@ public class AWSIoTDeviceManager extends BaseClass {
     private Orchestrator                            m_orchestrator = null;
     private String                                  m_suffix = null;
     private HashMap<String,HashMap<String,String>>  m_endpoint_details = null;
-    private String                                  m_device_id_url_template = null;
-    private String                                  m_api_version = null;
-    private String                                  m_aws_iot_gw_name = null;
-    private String                                  m_aws_iot_gw_add_device_json = null;
-    private String                                  m_aws_iot_gw_sas_token = null;
-    private String                                  m_aws_iot_gw_auth_qualifier = "SharedAccessSignature";
+    
+    private ArrayList<String>                       m_keys_cert_ids = null;
+    
+    // XXX make configurable
+    private String                                  m_policy_name = null;
+    private String                                  m_policy_document = null;
     
      // constructor
     public AWSIoTDeviceManager(ErrorLogger logger,PreferenceManager preferences,HttpTransport http,Orchestrator orchestrator) {
@@ -61,22 +64,14 @@ public class AWSIoTDeviceManager extends BaseClass {
         this.m_orchestrator = orchestrator; 
        
         // initialize the endpoint keys map
-        this.m_endpoint_details = new HashMap<>();
+        this.m_endpoint_details = new HashMap<>();   
         
-        // AWSIoT Name
-        this.m_aws_iot_gw_name = this.preferences().valueOf("aws_iot_gw_name",this.m_suffix);
+        // initialize the keys/cert id cache
+        this.m_keys_cert_ids = new ArrayList<>();
         
-        // AWSIoT REST API Version
-        this.m_api_version = this.preferences().valueOf("aws_iot_gw_api_version",this.m_suffix);
-        
-        // AWSIoT DeviceID REST URL Template
-        this.m_device_id_url_template = this.preferences().valueOf("aws_iot_gw_device_id_url",this.m_suffix).replace("__IOT_EVENT_HUB__",this.m_aws_iot_gw_name).replace("__API_VERSION__", this.m_api_version);
-    
-        // Add device JSON template
-        this.m_aws_iot_gw_add_device_json = this.preferences().valueOf("aws_iot_gw_add_device_json",this.m_suffix);
-        
-        // AWSIoT SAS Token (take out the qualifier if present...)
-        this.m_aws_iot_gw_sas_token = this.preferences().valueOf("aws_iot_gw_sas_token",this.m_suffix).replace("SharedAccessSignature ", "").trim();
+        // get configuration params
+        this.m_policy_name = this.orchestrator().preferences().valueOf("aws_iot_policy_name",this.m_suffix);
+        this.m_policy_document = this.orchestrator().preferences().valueOf("aws_iot_policy_document",this.m_suffix);
     }
     
     // get the orchestrator
@@ -93,6 +88,9 @@ public class AWSIoTDeviceManager extends BaseClass {
         // see if we already have a device...
         HashMap<String,String> ep = this.getDeviceDetails(device);
         if (ep != null) {
+            // complete the details
+            this.completeDeviceDetails(ep);
+            
             // save off this device 
             this.saveDeviceDetails(device, ep);
             
@@ -107,27 +105,19 @@ public class AWSIoTDeviceManager extends BaseClass {
         // return our status
         return status;
     }
-    
+
     // create and register a new device
     private boolean createAndRegisterNewDevice(Map message) {
         // create the new device type
         String device_type = (String)message.get("ept");
         String device = (String)message.get("ep");
         
-        // create the URL
-        String url = this.m_device_id_url_template.replace("__EPNAME__", device);
-                 
-        // build out the POST payload
-        String payload = this.m_aws_iot_gw_add_device_json.replace("__EPNAME__", device);
+        // invoke AWS CLI to create a new device
+        String args = "iot create-thing --thing-name=" + device;
+        String result = Utils.awsCLI(this.errorLogger(), args);
         
         // DEBUG
-        this.errorLogger().info("registerNewDevice: URL: " + url + " DATA: " + payload);
-        
-        // dispatch and look for the result
-        String result = this.put(url,payload);
-        
-        // DEBUG
-        //this.errorLogger().info("registerNewDevice: RESULT: " + result);
+        this.errorLogger().info("registerNewDevice: RESULT: " + result);
         
         // return our status
         Boolean status = (result != null && result.length() > 0);
@@ -145,22 +135,89 @@ public class AWSIoTDeviceManager extends BaseClass {
         return status;
     } 
     
+    // unlink the certificate from the Thing Record
+    private void unlinkCertificateFromThing(HashMap<String,String> ep) {
+        String args = "iot detach-thing-principal --thing-name=" + (String)ep.get("thingName") + " --principal=" + (String)ep.get("certificateArn");
+        Utils.awsCLI(this.errorLogger(), args);
+    }
+    
+    // unlink the certificate from the Policy
+    private void unlinkCertificateFromPolicy(HashMap<String,String> ep) {
+        String args = "iot detach-principal-policy --policy-name=" + this.m_policy_name + " --principal=" + (String)ep.get("certificateArn");
+        Utils.awsCLI(this.errorLogger(), args);
+    }
+    
+    // inactivate the Certificate
+    private void inactivateCertificate(HashMap<String,String> ep) {
+        this.inactivateCertificate((String)ep.get("certificateId"));
+    }
+    
+    // inactivate the Certificate
+    private void inactivateCertificate(String id) {
+        String args = "iot update-certificate --certificate-id=" + id + " --new-status=INACTIVE";
+        Utils.awsCLI(this.errorLogger(), args);
+    }
+    
+    // delete the Certificate
+    private void deleteCertificate(HashMap<String,String> ep) {
+        this.deleteCertificate((String)ep.get("certificateId"));
+    }
+    
+    // delete the Certificate
+    private void deleteCertificate(String id) {
+        String args = "iot delete-certificate --certificate-id=" + id;
+        Utils.awsCLI(this.errorLogger(), args);
+    }
+    
+    // get the key and cert index 
+    private int getKeyAndCertIndex(String id) {
+        int index = -1;
+        
+        for(int i=0;i<this.m_keys_cert_ids.size() && index < 0;++i) {
+            if (id.equalsIgnoreCase(this.m_keys_cert_ids.get(i)) == true) {
+                index = i;
+            }
+        }
+        
+        return index;
+    }
+    
+    // unlink a certificate from the policy and thing record, then deactivate it
+    private void removeCertificate(String device) {
+        // Get our record 
+        HashMap<String,String> ep = this.m_endpoint_details.get(device);
+        if (ep != null) {
+            // unlink the certificate from the thing record
+            this.unlinkCertificateFromThing(ep);
+            
+            // unlink the certificate from the thing record
+            this.unlinkCertificateFromPolicy(ep);
+            
+            // inactivate the certificate
+            this.inactivateCertificate(ep);
+            
+            // delete the certificate
+            this.deleteCertificate(ep);
+        }
+        
+        // remove locally as well
+        int index = this.getKeyAndCertIndex(device);
+        if (index >= 0) {
+            this.m_keys_cert_ids.remove(index);
+        }
+    }
+    
     // process device de-registration
-    public Boolean deregisterDevice(String device) {    
-        // create the URL
-        String url = this.m_device_id_url_template.replace("__EPNAME__", device);
+    public Boolean deregisterDevice(String device) { 
+        // first we unlink the certificate and deactivate it
+        this.removeCertificate(device);
         
-        // Get the ETag
-        String etag = this.getETagForDevice(device);
-        
-        // DEBUG
-        this.errorLogger().info("deregisterDevice: URL: " + url);
-        
-        // dispatch and look for the result
-        String result = this.delete(url,etag);
+        // invoke AWS CLI to create a new device
+        String args = "iot delete-thing --thing-name=" + device;
+        String result = Utils.awsCLI(this.errorLogger(), args);
         
         // DEBUG
-        //this.errorLogger().info("deregisterDevice: RESULT: " + result);
+        this.errorLogger().info("deregisterDevice: RESULT: " + result);
         
         // return our status
         Boolean status = (result != null && result.length() >= 0);
@@ -172,83 +229,51 @@ public class AWSIoTDeviceManager extends BaseClass {
         return status;
     }
     
+    // complete the device details
+    private void completeDeviceDetails(HashMap<String,String> ep) {    
+        // add the endpoint address details
+        if (ep.get("endpointAddress") == null) {
+            this.captureEndpointAddress(ep);
+        }
+
+        // add the policy details
+        if (ep.get("policyArn") == null) {
+            ep.put("policyName", this.m_policy_name);
+            this.capturePolicyDetails(ep);
+        }
+
+        // create and add the certificate details
+        if (ep.get("certificateId") == null) {
+            this.createKeysAndCertsAndLinkToPolicyAndThing(ep);
+        }
+    }
+    
     // get a given device's details...
     private HashMap<String,String> getDeviceDetails(String device) {
-        HashMap<String,String> ep = null;
+        HashMap<String,String> ep = this.m_endpoint_details.get(device);
         
-        // create the URL
-        String url = this.m_device_id_url_template.replace("__EPNAME__", device);
-        
-        // DEBUG
-        this.errorLogger().info("getDeviceDetails: URL: " + url);
-        
-        // dispatch and look for the result
-        String result = this.get(url);
-        
-        // DEBUG
-        //this.errorLogger().info("getDeviceDetails: RESULT: " + result);
-        
-        // return our status
-        Boolean status = (result != null && result.length() > 0);
-        
-        // parse our result...
-        if (status == true) {
-            ep = this.parseDeviceDetails(device,result);
+        // if we dont already have it, go get it... 
+        if (ep == null) {
+            // invoke AWS CLI to create a new device
+            String args = "iot describe-thing --thing-name=" + device;
+            String result = Utils.awsCLI(this.errorLogger(), args);
+
+            // DEBUG
+            //this.errorLogger().info("getDeviceDetails: RESULT: " + result);
+
+            // parse our result...
+            if (result != null && result.length() > 0) {
+                ep = this.parseDeviceDetails(device,result);
+            }
         }
         
         // return our endpoint details
         return ep;
     }
     
-    // GET specific data to a given URL 
-    private String get(String url) {
-        this.m_http.setAuthorizationQualifier(this.m_aws_iot_gw_auth_qualifier);
-        String result = this.m_http.httpsGetApiTokenAuth(url,this.m_aws_iot_gw_sas_token,null,"application/json",null);
-        return result;
-    }
-    
-    // PUT specific data to a given URL (with data)
-    private String put(String url,String payload) {
-        this.m_http.setAuthorizationQualifier(this.m_aws_iot_gw_auth_qualifier);
-        String result = this.m_http.httpsPutApiTokenAuth(url,this.m_aws_iot_gw_sas_token,payload,"application/json",null);
-        return result;
-    }
-    
-    // DELETE specific data to a given URL (with data)
-    private String delete(String url,String etag) { return this.delete(url,etag,null); }
-    private String delete(String url,String etag,String payload) {
-        this.m_http.setAuthorizationQualifier(this.m_aws_iot_gw_auth_qualifier);
-        this.m_http.setETagValue(etag);             // ETag header required...
-        this.m_http.setIfMatchValue("*");           // If-Match header required... 
-        String result = this.m_http.httpsDeleteApiTokenAuth(url,this.m_aws_iot_gw_sas_token,payload,"application/json",null);
-        return result;
-    }
-    
-    // Get the ETag value for the device
-    private String getETagForDevice(String ep_name) {
-        HashMap<String,String> ep = this.getEndpointDetails(ep_name);
-        if (ep != null) 
-            return ep.get("etag");
-        return null;
-    }
-    
-    // get the endpoint key
-    public String getEndpointKey(String ep_name) { return this.getEndpointKey(ep_name,"primary_key"); }
-    private String getEndpointKey(String ep_name,String id) {
-        HashMap<String,String> ep = this.getEndpointDetails(ep_name);
-        if (ep != null) 
-            return ep.get(id);
-        return null;
-    }
-    
-    // get the endpoint details
-    public HashMap<String,String> getEndpointDetails(String ep_name) {
-        return this.m_endpoint_details.get(ep_name);
-    }
-    
     // Help the JSON parser with null strings... ugh
     private String helpJSONParser(String json) {
-        if (json != null && json.length() > 0) return json.replace(":null",":\"none\"").replace(":\"\"",":\"none\"");
+        if (json != null && json.length() > 0) return json.replace(":null",":\"none\"").replace(":\"\"",":\"none\"").replace("\"attributes\": {},","");
         return json;
     }
     
@@ -260,7 +285,7 @@ public class AWSIoTDeviceManager extends BaseClass {
         // check the input json
         if (json != null) {
             try {
-                if (json.contains("ErrorCode:DeviceNotFound;") == false) {
+                if (json.contains("ResourceNotFoundException") == false) {
                     // fix up empty values
                     json = this.helpJSONParser(json);
 
@@ -270,17 +295,10 @@ public class AWSIoTDeviceManager extends BaseClass {
                     // Device Details
                     ep = new HashMap<>();
 
-                    // Device Keys
-                    Map authentication = (Map)parsed.get("authentication");
-                    Map symmetric_key = (Map)authentication.get("symmetricKey");
-                    ep.put("primary_key",(String)symmetric_key.get("primaryKey"));
-                    ep.put("secondary_key",(String)symmetric_key.get("secondaryKey"));
-
-                    // ETag for device
-                    ep.put("etag",(String)parsed.get("etag"));
-
                     // Device Name
-                    ep.put("deviceID",(String)parsed.get("deviceId"));
+                    ep.put("thingName",(String)parsed.get("thingName"));
+                    ep.put("defaultClientId",(String)parsed.get("defaultClientId"));
+                    ep.put("attributes",(String)parsed.get("thingName"));
                     ep.put("ep_name",device);
                     ep.put("ep_type",device_type);
 
@@ -288,7 +306,7 @@ public class AWSIoTDeviceManager extends BaseClass {
                     ep.put("json_record",json);
 
                     // DEBUG
-                    //this.errorLogger().info("parseDeviceDetails for " + device + ": " + ep);
+                    this.errorLogger().info("parseDeviceDetails for " + device + ": " + ep);
                 }
                 else {
                     // device is not found
@@ -317,11 +335,151 @@ public class AWSIoTDeviceManager extends BaseClass {
         return ep;
     }
     
+    // generate keys and certs
+    private void createKeysAndCerts(HashMap<String,String> ep) {
+        // AWS IOT CLI to create the keys and certificates
+        String args = "iot create-keys-and-certificate --set-as-active";
+        String result = Utils.awsCLI(this.errorLogger(), args);
+         
+        // DEBUG
+        //this.errorLogger().info("createKeysAndCerts: RESULT: " + result);
+        
+        // parse if we have something to parse
+        if (result != null && result.length() > 2) {
+            // parse it
+            Map parsed = this.m_orchestrator.getJSONParser().parseJson(result);
+            
+            // put the key items into our map
+            ep.put("certificateArn",(String)parsed.get("certificateArn"));
+            ep.put("certificatePem",(String)parsed.get("certificatePem"));
+            ep.put("certificateId",(String)parsed.get("certificateId"));
+            
+            // Keys are also available
+            Map keys = (Map)parsed.get("keyPair");
+            
+            // install the keys
+            ep.put("PrivateKey",(String)keys.get("PrivateKey"));
+            ep.put("PublicKey",(String)keys.get("PublicKey"));
+            
+            // save off to the key store
+            this.m_keys_cert_ids.add((String)parsed.get("certificateId"));
+        }
+        
+        // DEBUG
+        //this.errorLogger().info("createKeysAndCerts: EP: " + ep);
+    } 
+    
+    // delete given key and cert
+    private void deleteCertificate(int index) {
+        if (index >= 0) {
+            // delete the certficate from AWS IoT
+            String doomed = this.m_keys_cert_ids.get(index);
+            
+            // deactivate
+            this.inactivateCertificate(doomed);
+            
+            // delete
+            this.deleteCertificate(doomed);
+
+            // purge the certificate from the cache
+            this.m_keys_cert_ids.remove(index);
+        }
+    }
+    
+    // get our current defaulted policy
+    private String getDefaultPolicy() {
+        // AWS CLI invocation...
+        String args = "iot get-policy --policy-name=" + this.m_policy_name;
+        return Utils.awsCLI(this.errorLogger(), args);
+    }
+    
+    // save off the default policy
+    private void saveDefaultPolicy(HashMap<String,String> ep,String json) {
+        Map parsed = this.m_orchestrator.getJSONParser().parseJson(json);
+        ep.put("policyName", (String)parsed.get("policyName"));
+        ep.put("policyArn", (String)parsed.get("policyArn"));
+        ep.put("policyVersionId", (String)parsed.get("policyVersionId"));
+        ep.put("policyDocument", (String)parsed.get("policyDocument"));
+    }
+    
+    // create and save the defaulted policy
+    private void checkAndCreateDefaultPolicy(HashMap<String,String> ep) { 
+        // Our default policy
+        String policy_json = this.getDefaultPolicy();
+        
+        // if we dont have it, create it...
+        if (policy_json == null || policy_json.length() == 0) {
+            // AWS CLI invocation...
+            String args = "iot create-policy --policy-name=" + this.m_policy_name + " --policy-document=" + this.m_policy_document;
+            Utils.awsCLI(this.errorLogger(), args);
+            policy_json = this.getDefaultPolicy();
+        }
+         
+        // save off
+        this.saveDefaultPolicy(ep, policy_json);
+    }
+    
+    // link the certificate to the thing record and the default policy
+    private void linkCertificateToThingAndPolicy(HashMap<String,String> ep) {
+        // AWS CLI invocation - link policy to certficate ARN
+        String args = "iot attach-principal-policy --policy-name=" + this.m_policy_name + " --principal=" + (String)ep.get("certificateArn");
+        Utils.awsCLI(this.errorLogger(), args);
+        
+        // AWS CLI invocation - link thing record to certificate
+        args = "iot attach-thing-principal --thing-name=" + (String)ep.get("thingName")+ " --principal=" + (String)ep.get("certificateArn");
+        Utils.awsCLI(this.errorLogger(), args);
+    }
+    
+    // capture the endpoint address
+    private void captureEndpointAddress(HashMap<String,String> ep) {
+        // AWS CLI invocation - link policy to certficate ARN
+        String args = "iot describe-endpoint";
+        String json = Utils.awsCLI(this.errorLogger(), args);
+        if (json != null && json.length() > 0) {
+            Map parsed = this.m_orchestrator.getJSONParser().parseJson(json);
+            ep.put("endpointAddress",(String)parsed.get("endpointAddress"));
+        }
+    }
+    
+    // capture the certificate details
+    private void captureCertificateDetails(HashMap<String,String> ep) {
+        // AWS CLI invocation - link policy to certficate ARN
+        String args = "iot describe-endpoint";
+        String json = Utils.awsCLI(this.errorLogger(), args);
+        if (json != null && json.length() > 0) {
+            Map parsed = this.m_orchestrator.getJSONParser().parseJson(json);
+            ep.put("endpointAddress",(String)parsed.get("endpointAddress"));
+        }
+    }
+    
+    // capture the policy details
+    private void capturePolicyDetails(HashMap<String,String> ep) {
+        String json = this.getDefaultPolicy();
+        if (json != null && json.length() > 0) {
+            this.saveDefaultPolicy(ep, json);
+        }
+    }
+    
+    // create keys and certs and link to the device 
+    void createKeysAndCertsAndLinkToPolicyAndThing(HashMap<String,String> ep) {
+        // add the certificates and keys
+        this.createKeysAndCerts(ep);            
+
+        // link the thing record and default policy to the certificate
+        this.linkCertificateToThingAndPolicy(ep);
+    }
+    
     // Parse the AddDevice result and capture key elements 
     private void saveAddDeviceDetails(String device,String device_type,String json) {
         // parse our device details into structure
         HashMap<String,String> ep = this.parseDeviceDetails(device, device_type, json);
         if (ep != null) {
+            // create the default policy
+            this.checkAndCreateDefaultPolicy(ep);
+            
+            // create the keys/certs and link it to the default policy and device
+            this.createKeysAndCertsAndLinkToPolicyAndThing(ep);
+            
             // save off the details
             this.saveDeviceDetails(device, ep);
         }
@@ -330,22 +488,53 @@ public class AWSIoTDeviceManager extends BaseClass {
             this.errorLogger().warning("saveAddDeviceDetails: ERROR: unable to parse device " + device + " details JSON: " + json);
         }
     }
-    
+  
     // save device details
     public void saveDeviceDetails(String device,HashMap<String,String> entry) {
         // don't overwrite an existing entry..
         if (this.m_endpoint_details.get(device) == null) {
             // DEBUG
-            this.errorLogger().info("saveDeviceDetails: saving " + device + ": " + entry);
+            //this.errorLogger().info("saveDeviceDetails: saving " + device + ": " + entry);
 
             // save off the endpoint details
             this.m_endpoint_details.put(device,entry);
         }
     }
     
+    // is this cert_id used by one of the existing devices?
+    private boolean isUnusedKeyCert(String id) {
+        boolean unused = true;
+        
+        if (id != null && id.length() > 0) {
+            Iterator it = this.m_endpoint_details.entrySet().iterator();
+            while (it.hasNext() && unused == true) {
+                Map.Entry pair = (Map.Entry)it.next();
+                HashMap<String,String> ep = (HashMap<String,String>)pair.getValue();
+                if (id.equalsIgnoreCase((String)ep.get("certificateId")) == true) {
+                    unused = false;
+                }
+            }
+        }
+        
+        return unused;
+    }
+    
+    // clear out any stale Keys and Certs
+    public void clearOrhpanedKeysAndCerts() {
+        for(int i=0;i<this.m_keys_cert_ids.size();++i) {
+            // get the certificate ID
+            String cert_id = this.m_keys_cert_ids.get(i);
+            
+            // if NOT present in any of the device entries... kill it
+            if (this.isUnusedKeyCert(cert_id) == true) {
+                this.deleteCertificate(i);
+            }
+        }
+    }
+    
     // create a MQTT Password for a given device
     public String createMQTTPassword(String device) {
-        // use the AWSIoT SAS Token + the original signature qualifier
-        return this.m_aws_iot_gw_auth_qualifier + " " + this.m_aws_iot_gw_sas_token;
+        // XXX TO DO
+        return null;
     }
 }
