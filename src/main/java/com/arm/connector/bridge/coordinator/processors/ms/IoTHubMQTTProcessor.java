@@ -165,7 +165,7 @@ public class IoTHubMQTTProcessor extends GenericMQTTProcessor implements Transpo
             
             // Try a JSON parse... if it succeeds, assume the payload is a composite JSON value...
             Map json_parsed = this.tryJSONParse(decoded_coap_payload);
-            if (json_parsed != null) {
+            if (json_parsed != null && json_parsed.isEmpty() == false) {
                 // add in a JSON object payload value directly... 
                 notification.put("value", json_parsed);
             }
