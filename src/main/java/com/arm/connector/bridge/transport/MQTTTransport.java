@@ -203,27 +203,34 @@ public class MQTTTransport extends Transport {
     // create the key manager
     private KeyManager[] createKeyManager(String keyStoreType) {
         KeyManager[] kms = null;
+        FileInputStream fs = null;
        
         try {
             KeyManagerFactory   kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
             KeyStore ks = KeyStore.getInstance(keyStoreType);
-            FileInputStream fs = new FileInputStream(this.m_keystore_filename);
+            fs = new FileInputStream(this.m_keystore_filename);
             ks.load(fs, this.m_keystore_pw.toCharArray());
-            if (fs != null) fs.close();
             kmf.init(ks,this.m_keystore_pw.toCharArray());
             kms = kmf.getKeyManagers();
         }
         catch (NoSuchAlgorithmException | KeyStoreException | IOException | CertificateException | UnrecoverableKeyException ex) {
             this.errorLogger().warning("createKeyManager: Exception in creating the KeyManager list",ex);
         }
-
+        
+        try {
+            if (fs != null) fs.close();
+        }
+        catch (Exception ex) {
+            // silent
+        }
+        
         return kms;
     }
     
     // create the trust manager
-    private TrustManager[] createTrustManager(String filename,String pw,String id) {
+    private TrustManager[] createTrustManager() {
         TrustManager tm[] = new TrustManager[1];
-        tm[0] = new MQTTTrustManager(filename,Utils.generateKeystorePassword(pw,id));
+        tm[0] = new MQTTTrustManager(this.m_keystore_filename,this.m_keystore_pw);
         return tm;
     }
     
@@ -231,11 +238,16 @@ public class MQTTTransport extends Transport {
     private String initializeKeyStore(String id) {
         // create our credentials
         this.m_cert = Utils.createX509CertificateFromPEM(this.errorLogger(),this.m_pki_cert,"X509");
-        this.m_pubkey = Utils.createPublicKeyFromPEM(this.errorLogger(),this.m_pki_pub_key,"RSA");
         this.m_privkey = Utils.createPrivateKeyFromPEM(this.errorLogger(),this.m_pki_priv_key,"RSA");
+        
+        // also hold onto the public key
+        this.m_pubkey = Utils.createPublicKeyFromPEM(this.errorLogger(),this.m_pki_pub_key,"RSA");
+        
+        // set our keystore PW
+        this.m_keystore_pw = Utils.generateKeystorePassword(this.m_keystore_pw,id);
 
         // create the keystore
-        return Utils.createKeystore(this.errorLogger(),this.m_base_dir,id,this.m_keystore_basename,this.m_cert,this.m_privkey,Utils.generateKeystorePassword(this.m_keystore_pw,id));
+        return Utils.createKeystore(this.errorLogger(),this.m_base_dir,id,this.m_keystore_basename,this.m_cert,this.m_privkey,this.m_keystore_pw);
     }
     
     // initialize the SSL context
@@ -247,12 +259,12 @@ public class MQTTTransport extends Transport {
             // initialize the keystores...
             this.m_keystore_filename = this.initializeKeyStore(id);
             if (this.m_keystore_filename != null) {
-                // create our SSL context
-                this.m_ssl_context = SSLContext.getInstance("SSL");
+                // create our SSL context - FYI: AWS IoT requires TLS v1.2
+                this.m_ssl_context = SSLContext.getInstance("TLSv1.2");
                 
                 // initialize the SSL context with our KeyManager and our TrustManager
                 KeyManager km[] = this.createKeyManager("JKS");
-                TrustManager tm[] = this.createTrustManager(this.m_keystore_filename,this.m_keystore_pw,id);
+                TrustManager tm[] = this.createTrustManager();
                 this.m_ssl_context.init(km,tm,new SecureRandom());
                 return true;
             }
@@ -885,7 +897,7 @@ public class MQTTTransport extends Transport {
         return this.m_host_url;
     }
     
-    // Trust manager
+    // Internal MQTT Trust manager
     class MQTTTrustManager implements X509TrustManager { 
         private KeyStore m_keystore = null;
         private String  m_keystore_filename = null;
@@ -902,14 +914,15 @@ public class MQTTTransport extends Transport {
         // intialize the Trust Manager
         private void initializeTrustManager() {
             try {
-                FileInputStream myKeys = new FileInputStream(this.m_keystore_filename);
-                KeyStore myTrustStore = KeyStore.getInstance(KeyStore.getDefaultType());
-                myTrustStore.load(myKeys, this.m_keystore_pw.toCharArray());
-                myKeys.close();
+                KeyStore myTrustStore;
+                try (FileInputStream myKeys = new FileInputStream(this.m_keystore_filename)) {
+                    myTrustStore = KeyStore.getInstance(KeyStore.getDefaultType());
+                    myTrustStore.load(myKeys, this.m_keystore_pw.toCharArray());
+                }
                 TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
                 tmf.init(myTrustStore);
             }
-            catch (Exception ex) {
+            catch (KeyStoreException | IOException | NoSuchAlgorithmException | CertificateException ex) {
                 errorLogger().warning("MQTTTrustManager:initializeTrustManager: FAILED to initialize",ex);
             }
         }

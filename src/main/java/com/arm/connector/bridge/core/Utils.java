@@ -25,9 +25,7 @@ package com.arm.connector.bridge.core;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
-import java.io.DataInputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -47,7 +45,6 @@ import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
-import java.security.spec.RSAPrivateKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.text.DateFormat;
 import java.text.ParseException;
@@ -270,7 +267,7 @@ public class Utils {
             return new String(b64);
         }
         catch (Exception ex) {
-            return new String("exception");
+            return "exception";
         }
     }
     
@@ -342,6 +339,7 @@ public class Utils {
      * Execute the AWS CLI
      * @param logger - ErrorLogger instance
      * @param args - arguments for the AWS CLI 
+     * @return response from CLI action
      */
     public static String awsCLI(ErrorLogger logger,String args) {
        // construct the arguments
@@ -374,7 +372,7 @@ public class Utils {
                logger.info("AWS CLI: Exit Code: " + status);
            }
        } 
-       catch (Exception ex) {
+       catch (IOException | InterruptedException ex) {
            logger.warning("AWS CLI: Exception for command: " + cmd,ex);
            response = null;
        }
@@ -476,13 +474,13 @@ public class Utils {
                 logger.warning("createKeystore: certificate is NULL... not added to keystore");
             }
 
-            // Store away the keystore.
-            FileOutputStream fos = new FileOutputStream(keystore_filename);
-            ks.store(fos,pw.toCharArray());
-            
-            // close
-            fos.flush();
-            fos.close();
+            try (FileOutputStream fos = new FileOutputStream(keystore_filename)) {
+                // store away the keystore content
+                ks.store(fos,pw.toCharArray());
+                
+                // close
+                fos.flush();
+            }
         }
         catch (IOException | KeyStoreException | NoSuchAlgorithmException | CertificateException ex) {
             logger.warning("createKeystore: Unable to create keystore: " + keystore_filename,ex);
@@ -581,7 +579,7 @@ public class Utils {
             KeyFactory kf = KeyFactory.getInstance(algorithm);
             return kf.generatePrivate(spec);
         }
-        catch (Exception ex) {
+        catch (NoSuchAlgorithmException | InvalidKeySpecException ex) {
             // exception caught
             logger.warning("createPrivateKeyFromPEM: Exception during private key gen",ex);
         }

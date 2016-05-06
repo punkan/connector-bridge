@@ -809,12 +809,12 @@ public class AWSIoTMQTTProcessor extends GenericMQTTProcessor implements Transpo
             String client_id = ep_name;
             
             // DEBUG override for testing internally... do not enable
-            if (this.prefBoolValue("mqtt_debug_internal") == true) {
-                this.m_mqtt_host = "192.168.1.213";
-                client_id = null;
-                mqtt.useUserPass();
-                 mqtt.enableMQTTVersionSet(false);
-            }
+            //if (this.prefBoolValue("mqtt_debug_internal") == true) {
+            //    this.m_mqtt_host = "192.168.1.213";
+            //    client_id = null;
+            //    mqtt.useUserPass();
+            //     mqtt.enableMQTTVersionSet(false);
+            //}
 
             // add it to the list indexed by the endpoint name... not the clientID...
             this.addMQTTTransport(ep_name,mqtt);
