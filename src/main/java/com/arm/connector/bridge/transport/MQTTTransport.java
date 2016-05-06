@@ -27,27 +27,26 @@ import com.arm.connector.bridge.core.Transport;
 import com.arm.connector.bridge.core.ErrorLogger;
 import com.arm.connector.bridge.core.Utils;
 import com.arm.connector.bridge.preferences.PreferenceManager;
-import java.io.ByteArrayInputStream;
-import java.io.DataInputStream;
 import java.io.EOFException;
+import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.security.KeyFactory;
 import java.security.KeyManagementException;
 import java.security.KeyStore;
+import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
+import java.security.UnrecoverableKeyException;
 import java.security.cert.CertificateException;
-import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
-import java.security.spec.PKCS8EncodedKeySpec;
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
+import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.fusesource.mqtt.client.BlockingConnection;
 import org.fusesource.mqtt.client.MQTT;
 import org.fusesource.mqtt.client.QoS;
@@ -87,6 +86,15 @@ public class MQTTTransport extends Transport {
     private String m_pki_cert = null;
     private SSLContext m_ssl_context = null;
     
+    private String m_keystore_pw = null;
+    private String m_base_dir = null;
+    private String m_keystore_filename = null;
+    private String m_keystore_basename = null;
+    private X509Certificate m_cert = null;
+    private PublicKey m_pubkey = null;
+    private PrivateKey m_privkey = null;
+    private boolean m_set_mqtt_version = true;
+    
     /**
      * Instance Factory
      * @param error_logger
@@ -108,13 +116,22 @@ public class MQTTTransport extends Transport {
      * @param suffix
      */
     public MQTTTransport(ErrorLogger error_logger, PreferenceManager preference_manager,String suffix) {
-        this(error_logger,preference_manager);
+        super(error_logger,preference_manager);
+        this.m_use_pki = false;
+        this.m_forced_ssl = false;
+        this.m_ssl_context = null;
+        this.m_host_url = null;
         this.m_suffix = suffix;
+        this.m_keystore_filename = null;
+        this.m_set_mqtt_version = true;
+        
         this.setUsername(this.prefValue("mqtt_username",this.m_suffix));
         this.setPassword(this.prefValue("mqtt_password",this.m_suffix));
-        this.m_host_url = null;
-        this.m_max_retries = (this.preferences().intValueOf("mqtt_connect_retries",this.m_suffix));
+        this.m_max_retries = this.preferences().intValueOf("mqtt_connect_retries",this.m_suffix);
         this.m_sleep_time = ((this.preferences().intValueOf("mqtt_receive_loop_sleep",this.m_suffix))*1000);
+        this.m_keystore_pw = this.preferences().valueOf("mqtt_keystore_pw",this.m_suffix);
+        this.m_base_dir = this.preferences().valueOf("mqtt_keystore_basedir",this.m_suffix);
+        this.m_keystore_basename = this.preferences().valueOf("mqtt_keystore_basename",this.m_suffix);
     }
 
     /**
@@ -124,10 +141,26 @@ public class MQTTTransport extends Transport {
      */
     public MQTTTransport(ErrorLogger error_logger, PreferenceManager preference_manager) {
         super(error_logger, preference_manager);
-        this.m_suffix = null;
         this.m_use_pki = false;
         this.m_forced_ssl = false;
         this.m_ssl_context = null;
+        this.m_host_url = null;
+        this.m_suffix = null;
+        this.m_keystore_filename = null;
+        this.m_set_mqtt_version = true;
+                
+        this.setUsername(this.prefValue("mqtt_username",this.m_suffix));
+        this.setPassword(this.prefValue("mqtt_password",this.m_suffix));
+        this.m_max_retries = this.preferences().intValueOf("mqtt_connect_retries",this.m_suffix);
+        this.m_sleep_time = ((this.preferences().intValueOf("mqtt_receive_loop_sleep",this.m_suffix))*1000);
+        this.m_keystore_pw = this.preferences().valueOf("mqtt_keystore_pw",this.m_suffix);
+        this.m_base_dir = this.preferences().valueOf("mqtt_keystore_basedir",this.m_suffix);
+        this.m_keystore_basename = this.preferences().valueOf("mqtt_keystore_basename",this.m_suffix);
+    }
+    
+    // disable setting of MQTT version
+    public void enableMQTTVersionSet(boolean set_mqtt_version) {
+        this.m_set_mqtt_version = set_mqtt_version;
     }
     
     // reset to using username/passwords
@@ -151,11 +184,11 @@ public class MQTTTransport extends Transport {
     }
     
     // utilize PKI certs
-    public void enablePKI(String priv_key,String pub_key,String certificate) {
+    public void enablePKI(String priv_key,String pub_key,String certificate,String id) {
         this.m_pki_priv_key = priv_key;
         this.m_pki_pub_key = pub_key;
         this.m_pki_cert = certificate;
-        if (this.initializeSSLContext() == true) {
+        if (this.initializeSSLContext(id) == true) {
             this.m_use_pki = true;
             this.m_forced_ssl = true;
         }
@@ -167,53 +200,62 @@ public class MQTTTransport extends Transport {
         }
     }
     
-    // convert to a X.509 Certificate
-    private X509Certificate getX509Certificate(String pem) throws CertificateException, IOException {
-        CertificateFactory cf = CertificateFactory.getInstance("X.509");
-        InputStream is = new ByteArrayInputStream( pem.getBytes()); 
-        X509Certificate cert = (X509Certificate)cf.generateCertificate(is);
-        return cert;
-    }
-    
-    // convert the PrivateKey
-    private PrivateKey getPrivateKey(String pem) throws Exception {
-          InputStream is = new ByteArrayInputStream(pem.getBytes());
-          DataInputStream dis = new DataInputStream(is);
-          byte[] keyBytes = new byte[(int)pem.length()];
-          dis.readFully(keyBytes);
-          dis.close();
-          is.close();
-          PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(keyBytes);
-          KeyFactory kf = KeyFactory.getInstance("RSA");
-          return kf.generatePrivate(spec);
-    }
-    
-    // convert the PublicKey
-    private PublicKey getPublicKey(String pem) throws Exception {
-          InputStream is = new ByteArrayInputStream(pem.getBytes());
-          DataInputStream dis = new DataInputStream(is);
-          byte[] keyBytes = new byte[(int)pem.length()];
-          dis.readFully(keyBytes);
-          dis.close();
-          is.close();
-          PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(keyBytes);
-          KeyFactory kf = KeyFactory.getInstance("RSA");
-          return kf.generatePublic(spec);
-    }
-    
     // create the key manager
-    private KeyManager[] createKeyManager() throws NoSuchAlgorithmException {
-        KeyManager[] list = new KeyManager[0];
+    private KeyManager[] createKeyManager(String keyStoreType) {
+        KeyManager[] kms = null;
        
-        return list;
+        try {
+            KeyManagerFactory   kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+            KeyStore ks = KeyStore.getInstance(keyStoreType);
+            FileInputStream fs = new FileInputStream(this.m_keystore_filename);
+            ks.load(fs, this.m_keystore_pw.toCharArray());
+            if (fs != null) fs.close();
+            kmf.init(ks,this.m_keystore_pw.toCharArray());
+            kms = kmf.getKeyManagers();
+        }
+        catch (NoSuchAlgorithmException | KeyStoreException | IOException | CertificateException | UnrecoverableKeyException ex) {
+            this.errorLogger().warning("createKeyManager: Exception in creating the KeyManager list",ex);
+        }
+
+        return kms;
+    }
+    
+    // create the trust manager
+    private TrustManager[] createTrustManager(String filename,String pw,String id) {
+        TrustManager tm[] = new TrustManager[1];
+        tm[0] = new MQTTTrustManager(filename,Utils.generateKeystorePassword(pw,id));
+        return tm;
+    }
+    
+    // create keystore
+    private String initializeKeyStore(String id) {
+        // create our credentials
+        this.m_cert = Utils.createX509CertificateFromPEM(this.errorLogger(),this.m_pki_cert,"X509");
+        this.m_pubkey = Utils.createPublicKeyFromPEM(this.errorLogger(),this.m_pki_pub_key,"RSA");
+        this.m_privkey = Utils.createPrivateKeyFromPEM(this.errorLogger(),this.m_pki_priv_key,"RSA");
+
+        // create the keystore
+        return Utils.createKeystore(this.errorLogger(),this.m_base_dir,id,this.m_keystore_basename,this.m_cert,this.m_privkey,Utils.generateKeystorePassword(this.m_keystore_pw,id));
     }
     
     // initialize the SSL context
-    private boolean initializeSSLContext() {
+    private boolean initializeSSLContext(String id) {
         try {
-            this.m_ssl_context = SSLContext.getInstance("TLS");
-            this.m_ssl_context.init(this.createKeyManager(), new TrustManager[]{new DefaultTrustManager()}, new SecureRandom());
-            return true;
+            // enable proper parsing of the PKCS#1 private key from AWS... not sure why they dont just send it as PKCS#8...
+            java.security.Security.addProvider(new BouncyCastleProvider());
+            
+            // initialize the keystores...
+            this.m_keystore_filename = this.initializeKeyStore(id);
+            if (this.m_keystore_filename != null) {
+                // create our SSL context
+                this.m_ssl_context = SSLContext.getInstance("SSL");
+                
+                // initialize the SSL context with our KeyManager and our TrustManager
+                KeyManager km[] = this.createKeyManager("JKS");
+                TrustManager tm[] = this.createTrustManager(this.m_keystore_filename,this.m_keystore_pw,id);
+                this.m_ssl_context.init(km,tm,new SecureRandom());
+                return true;
+            }
         }
         catch (NoSuchAlgorithmException | KeyManagementException ex) {
             // exception caught
@@ -329,7 +371,7 @@ public class MQTTTransport extends Transport {
                 
                 // set the MQTT version
                 String mqtt_version = this.prefValue("mqtt_version",this.m_suffix);
-                if (mqtt_version != null) {
+                if (mqtt_version != null && this.m_set_mqtt_version == true) {
                     endpoint.setVersion(mqtt_version);
                 }
                 
@@ -798,7 +840,8 @@ public class MQTTTransport extends Transport {
             this.m_connect_host = null;
             this.m_connect_port = 0;
             this.m_connect_client_id = null;
-            this.m_connect_clean_session = false;
+            Utils.deleteKeystore(this.errorLogger(),this.m_keystore_filename,this.m_keystore_basename);
+            this.m_keystore_filename = null;
         }
     }
     
@@ -843,7 +886,34 @@ public class MQTTTransport extends Transport {
     }
     
     // Trust manager
-    static class DefaultTrustManager implements X509TrustManager {    
+    class MQTTTrustManager implements X509TrustManager { 
+        private KeyStore m_keystore = null;
+        private String  m_keystore_filename = null;
+        private String  m_keystore_pw = null;
+        
+        // constructor
+        public MQTTTrustManager(String keystore_filename,String pw) {
+            super();
+            this.m_keystore_filename = keystore_filename;
+            this.m_keystore_pw = pw;
+            this.initializeTrustManager();
+        }
+        
+        // intialize the Trust Manager
+        private void initializeTrustManager() {
+            try {
+                FileInputStream myKeys = new FileInputStream(this.m_keystore_filename);
+                KeyStore myTrustStore = KeyStore.getInstance(KeyStore.getDefaultType());
+                myTrustStore.load(myKeys, this.m_keystore_pw.toCharArray());
+                myKeys.close();
+                TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+                tmf.init(myTrustStore);
+            }
+            catch (Exception ex) {
+                errorLogger().warning("MQTTTrustManager:initializeTrustManager: FAILED to initialize",ex);
+            }
+        }
+        
         @Override
         public void checkClientTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
         }

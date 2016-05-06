@@ -800,7 +800,7 @@ public class AWSIoTMQTTProcessor extends GenericMQTTProcessor implements Transpo
             HashMap<String,String> ep = this.m_aws_iot_gw_device_manager.getEndpointDetails(ep_name);
                         
             // AWSIoT only works with PKI
-            mqtt.enablePKI(ep.get("PrivateKey"),ep.get("PublicKey"),ep.get("certificatePem"));
+            mqtt.enablePKI(ep.get("PrivateKey"),ep.get("PublicKey"),ep.get("certificatePem"),ep.get("thingName"));
             
             // set the AWSIoT endpoint address
             this.m_mqtt_host = ep.get("endpointAddress");
@@ -809,9 +809,12 @@ public class AWSIoTMQTTProcessor extends GenericMQTTProcessor implements Transpo
             String client_id = ep_name;
             
             // DEBUG override for testing internally... do not enable
-            //this.m_mqtt_host = "192.168.1.213";
-            //client_id = null;
-            //mqtt.useUserPass();
+            if (this.prefBoolValue("mqtt_debug_internal") == true) {
+                this.m_mqtt_host = "192.168.1.213";
+                client_id = null;
+                mqtt.useUserPass();
+                 mqtt.enableMQTTVersionSet(false);
+            }
 
             // add it to the list indexed by the endpoint name... not the clientID...
             this.addMQTTTransport(ep_name,mqtt);

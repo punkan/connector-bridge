@@ -24,13 +24,31 @@
 package com.arm.connector.bridge.core;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
 import java.nio.ByteBuffer;
+import java.security.KeyFactory;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateException;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.RSAPrivateKeySpec;
+import java.security.spec.X509EncodedKeySpec;
 import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -363,5 +381,234 @@ public class Utils {
        
        // return the resposne
        return response;
-   }
+    }
+   
+    // escape chars utility
+    public static String escapeChars(String str) {
+        return str.replace("\\n","");
+    }
+    
+    // Create CA Root certificate
+    public static X509Certificate createCACertificate(ErrorLogger logger) {
+        // Root CA for AWS IoT (5/6/2016)
+        // https://www.symantec.com/content/en/us/enterprise/verisign/roots/VeriSign-Class%203-Public-Primary-Certification-Authority-G5.pem
+        String pem =    "-----BEGIN CERTIFICATE-----" +
+                            "MIIE0zCCA7ugAwIBAgIQGNrRniZ96LtKIVjNzGs7SjANBgkqhkiG9w0BAQUFADCB" +
+                            "yjELMAkGA1UEBhMCVVMxFzAVBgNVBAoTDlZlcmlTaWduLCBJbmMuMR8wHQYDVQQL" +
+                            "ExZWZXJpU2lnbiBUcnVzdCBOZXR3b3JrMTowOAYDVQQLEzEoYykgMjAwNiBWZXJp" +
+                            "U2lnbiwgSW5jLiAtIEZvciBhdXRob3JpemVkIHVzZSBvbmx5MUUwQwYDVQQDEzxW" +
+                            "ZXJpU2lnbiBDbGFzcyAzIFB1YmxpYyBQcmltYXJ5IENlcnRpZmljYXRpb24gQXV0" +
+                            "aG9yaXR5IC0gRzUwHhcNMDYxMTA4MDAwMDAwWhcNMzYwNzE2MjM1OTU5WjCByjEL" +
+                            "MAkGA1UEBhMCVVMxFzAVBgNVBAoTDlZlcmlTaWduLCBJbmMuMR8wHQYDVQQLExZW" +
+                            "ZXJpU2lnbiBUcnVzdCBOZXR3b3JrMTowOAYDVQQLEzEoYykgMjAwNiBWZXJpU2ln" +
+                            "biwgSW5jLiAtIEZvciBhdXRob3JpemVkIHVzZSBvbmx5MUUwQwYDVQQDEzxWZXJp" +
+                            "U2lnbiBDbGFzcyAzIFB1YmxpYyBQcmltYXJ5IENlcnRpZmljYXRpb24gQXV0aG9y" +
+                            "aXR5IC0gRzUwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCvJAgIKXo1" +
+                            "nmAMqudLO07cfLw8RRy7K+D+KQL5VwijZIUVJ/XxrcgxiV0i6CqqpkKzj/i5Vbex" +
+                            "t0uz/o9+B1fs70PbZmIVYc9gDaTY3vjgw2IIPVQT60nKWVSFJuUrjxuf6/WhkcIz" +
+                            "SdhDY2pSS9KP6HBRTdGJaXvHcPaz3BJ023tdS1bTlr8Vd6Gw9KIl8q8ckmcY5fQG" +
+                            "BO+QueQA5N06tRn/Arr0PO7gi+s3i+z016zy9vA9r911kTMZHRxAy3QkGSGT2RT+" +
+                            "rCpSx4/VBEnkjWNHiDxpg8v+R70rfk/Fla4OndTRQ8Bnc+MUCH7lP59zuDMKz10/" +
+                            "NIeWiu5T6CUVAgMBAAGjgbIwga8wDwYDVR0TAQH/BAUwAwEB/zAOBgNVHQ8BAf8E" +
+                            "BAMCAQYwbQYIKwYBBQUHAQwEYTBfoV2gWzBZMFcwVRYJaW1hZ2UvZ2lmMCEwHzAH" +
+                            "BgUrDgMCGgQUj+XTGoasjY5rw8+AatRIGCx7GS4wJRYjaHR0cDovL2xvZ28udmVy" +
+                            "aXNpZ24uY29tL3ZzbG9nby5naWYwHQYDVR0OBBYEFH/TZafC3ey78DAJ80M5+gKv" +
+                            "MzEzMA0GCSqGSIb3DQEBBQUAA4IBAQCTJEowX2LP2BqYLz3q3JktvXf2pXkiOOzE" +
+                            "p6B4Eq1iDkVwZMXnl2YtmAl+X6/WzChl8gGqCBpH3vn5fJJaCGkgDdk+bW48DW7Y" +
+                            "5gaRQBi5+MHt39tBquCWIMnNZBU4gcmU7qKEKQsTb47bDN0lAtukixlE0kF6BWlK" +
+                            "WE9gyn6CagsCqiUXObXbf+eEZSqVir2G3l6BFoMtEMze/aiCKm0oHw0LxOXnGiYZ" +
+                            "4fQRbxC1lfznQgUy286dUV4otp6F01vvpX1FQHKOtw5rDgb7MzVIcbidJ4vEZV8N" +
+                            "hnacRHr2lVz2XTIIM6RUthg/aFzyQkqFOFSDX9HoLPKsEdao7WNq" +
+                        "-----END CERTIFICATE-----";
+        
+        return Utils.createX509CertificateFromPEM(logger,pem,"X509");
+    }
+    
+    // create a Keystore
+    public static String createKeystore(ErrorLogger logger,String base,String sep,String filename,X509Certificate cert,PrivateKey priv_key,String pw) {
+        String basedir = base + File.separator + sep;
+        String keystore_filename = basedir + File.separator + filename;
+        
+        try {
+            // first create the directory if it does not exist
+            File file = new File(basedir);
+            
+            // make the directories
+            logger.info("createKeystore: Making directories for keystore...");
+            file.mkdirs();
+            
+            // create the KeyStore
+            logger.info("createKeystore: Creating keystore: " + keystore_filename);
+            file = new File(keystore_filename);
+            if (file.createNewFile()){
+	        logger.info("createKeystore: keystore created:  " + keystore_filename);
+	    }
+            else {
+	        logger.warning("createKeystore: keystore already exists " + keystore_filename);
+	    }
+            
+            // store data into the keystore
+            KeyStore ks = KeyStore.getInstance("JKS");
+            ks.load(null,pw.toCharArray());
+            
+            // set the certificate, priv and pub keys
+            if (cert != null) {
+                Certificate[] cert_list = new Certificate[2];
+                cert_list[0] = cert;
+                cert_list[1] = Utils.createCACertificate(logger);
+                
+                ks.setCertificateEntry("aws",cert_list[0]);
+                ks.setCertificateEntry("verisign", cert_list[1]);
+                
+                if (priv_key != null) {
+                    try {
+                        ks.setKeyEntry("privkey",priv_key,pw.toCharArray(),cert_list);
+                    }
+                    catch (Exception ex2) {
+                        logger.warning("createKeystore: Exception during priv addition... not added to keystore",ex2);
+                    }
+                }
+                else {
+                    logger.warning("createKeystore: privkey is NULL... not added to keystore");
+                }
+            }
+            else {
+                logger.warning("createKeystore: certificate is NULL... not added to keystore");
+            }
+
+            // Store away the keystore.
+            FileOutputStream fos = new FileOutputStream(keystore_filename);
+            ks.store(fos,pw.toCharArray());
+            
+            // close
+            fos.flush();
+            fos.close();
+        }
+        catch (IOException | KeyStoreException | NoSuchAlgorithmException | CertificateException ex) {
+            logger.warning("createKeystore: Unable to create keystore: " + keystore_filename,ex);
+        }
+       
+        // return the keystore filename
+        return keystore_filename;
+    }
+    
+    // generate a keystore password
+    public static String generateKeystorePassword(String base_pw,String salt) {
+        // XXX TO DO
+        return base_pw;
+    }
+    
+    // remove the keystore from the filesystem
+    public static void deleteKeystore(ErrorLogger logger,String filename,String keystore_name) {
+        try {
+            // DEBUG
+            logger.info("deleteKeystore: deleting keystore: " + filename);
+            
+            // Delete the KeyStore
+            File file = new File(filename);
+            if(file.delete()){
+                // success
+                logger.info(file.getName() + " is deleted!");
+            }
+            else {
+                // failure
+                logger.warning("Delete operation is failed: " + filename);
+            }
+            
+            // Create the parent directory
+            String basedir = filename.replace("/" + keystore_name,"");
+            
+            // DEBUG
+            logger.info("deleteKeystore: deleting keystore parent directory: " + basedir);
+            
+            // Delete the Base Directory
+            file = new File(basedir);
+            if (file.isDirectory()) {
+                if (file.delete()) {
+                    // success
+                    logger.info(basedir + " is deleted!");
+                }
+                else {
+                    // failure
+                    logger.warning("Delete operation is failed : " + basedir);
+                }
+            }
+            
+        }
+        catch (Exception ex) {
+            // exception caught
+            logger.warning("deleteKeystore: Exception during deletion of keystore: " + filename,ex);
+        }
+    }
+    
+    // Create X509Certificate from PEM
+    static public X509Certificate createX509CertificateFromPEM(ErrorLogger logger,String pem, String cert_type) {
+        try {
+            String temp = Utils.escapeChars(pem);
+            String certPEM = temp.replace("-----BEGIN CERTIFICATE-----", "");
+            certPEM = certPEM.replace("-----END CERTIFICATE-----", "");
+            
+            // DEBUG
+            //logger.info("createX509CertificateFromPEM: " + certPEM);
+
+            Base64 b64 = new Base64();
+            byte [] decoded = b64.decode(certPEM);
+            
+            CertificateFactory cf = CertificateFactory.getInstance(cert_type);
+            return (X509Certificate)cf.generateCertificate(new ByteArrayInputStream(decoded));
+        }
+        catch (Exception ex) {
+            // exception caught
+            logger.warning("createX509CertificateFromPEM: Exception during private key gen",ex);
+        }
+        return null;
+    }
+    
+    // Create PrivateKey from PEM
+    static public PrivateKey createPrivateKeyFromPEM(ErrorLogger logger,String pem, String algorithm) {
+        try {
+            String temp = Utils.escapeChars(pem);
+            String privKeyPEM = temp.replace("-----BEGIN RSA PRIVATE KEY-----","");
+            privKeyPEM = privKeyPEM.replace("-----END RSA PRIVATE KEY-----", "");
+            
+            // DEBUG
+            //logger.info("createPrivateKeyFromPEM: " + privKeyPEM);
+            
+            Base64 b64 = new Base64();
+            byte [] decoded = b64.decode(privKeyPEM);
+            
+            PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(decoded);
+            KeyFactory kf = KeyFactory.getInstance(algorithm);
+            return kf.generatePrivate(spec);
+        }
+        catch (Exception ex) {
+            // exception caught
+            logger.warning("createPrivateKeyFromPEM: Exception during private key gen",ex);
+        }
+        return null;
+    }
+
+     // Create PublicKey from PEM
+    static public PublicKey createPublicKeyFromPEM(ErrorLogger logger,String pem, String algorithm) {
+        try {
+            String temp = Utils.escapeChars(pem);
+            String publicKeyPEM = temp.replace("-----BEGIN PUBLIC KEY-----", "");
+            publicKeyPEM = publicKeyPEM.replace("-----END PUBLIC KEY-----", "");
+            
+            // DEBUG
+            //logger.info("createPublicKeyFromPEM: " + publicKeyPEM);
+
+            Base64 b64 = new Base64();
+            byte [] decoded = b64.decode(publicKeyPEM);
+
+            X509EncodedKeySpec spec = new X509EncodedKeySpec(decoded);
+            KeyFactory kf = KeyFactory.getInstance(algorithm);
+            return kf.generatePublic(spec);
+        }
+        catch (NoSuchAlgorithmException | InvalidKeySpecException ex) {
+            // exception caught
+            logger.warning("createPublicKeyFromPEM: Exception during public key gen",ex);
+        }
+        return null;
+    }
 }
